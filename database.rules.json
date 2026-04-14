@@ -1,1 +1,10 @@
-{ "rules": { ".read": "true", ".write": "true" } }
+{
+  "rules": {
+    "shared_schedule_editor": {
+      "data": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    }
+  }
+}

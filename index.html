@@ -21,6 +21,7 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -108,12 +109,26 @@
     ];
 
     function App() {
-      const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('prok_admin_logged_in') === 'true');
+      const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [showLoginModal, setShowLoginModal] = useState(false);
       const [loginId, setLoginId] = useState('');
       const [loginPw, setLoginPw] = useState('');
       const [searchQuery, setSearchQuery] = useState('');
       const [activeTimeRow, setActiveTimeRow] = useState(null);
+      const [viewMode, setViewMode] = useState('preview');
+
+      useEffect(() => {
+        const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+          if (user) {
+            setIsLoggedIn(true);
+            setViewMode('edit');
+          } else {
+            setIsLoggedIn(false);
+            setViewMode('preview');
+          }
+        });
+        return () => unsubscribe();
+      }, []);
 
       const [tables, setTables] = useState(initialData);
 
@@ -125,7 +140,6 @@
         return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
       }, [tables]);
 
-      const [viewMode, setViewMode] = useState(() => sessionStorage.getItem('prok_admin_logged_in') === 'true' ? 'edit' : 'preview');
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
       const previewRef = useRef(null);
@@ -350,22 +364,22 @@
 
       const handleLogin = (e) => {
         e.preventDefault();
-        if (loginId === 'admin' && loginPw === 'prok7600') {
-          setIsLoggedIn(true);
-          sessionStorage.setItem('prok_admin_logged_in', 'true');
-          setShowLoginModal(false);
-          setViewMode('edit');
-          setLoginId('');
-          setLoginPw('');
-        } else {
-          alert('아이디 또는 비밀번호가 틀렸습니다.');
-        }
+        if (!loginId || !loginPw) return alert('아이디(이메일)와 비밀번호를 입력해주세요.');
+        
+        firebase.auth().signInWithEmailAndPassword(loginId, loginPw)
+          .then(() => {
+            setShowLoginModal(false);
+            setLoginId('');
+            setLoginPw('');
+          })
+          .catch((error) => {
+            console.error("Login Error:", error);
+            alert('인증 정보가 올바르지 않습니다.\n(에러: ' + error.message + ')');
+          });
       };
 
       const handleLogout = () => {
-        setIsLoggedIn(false);
-        sessionStorage.removeItem('prok_admin_logged_in');
-        setViewMode('preview');
+        firebase.auth().signOut().catch(err => console.error(err));
       };
 
       const scrollToTodayNearest = () => {

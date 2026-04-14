@@ -564,10 +564,68 @@
                             return (
                               <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors bg-white">
                                 <td className="p-2">
-                                  <input value={row.date} onChange={e => updateRow(table.id, row.id, 'date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-700" placeholder={datePlaceholder} />
+                                  <input 
+                                    value={row.date} 
+                                    onChange={e => updateRow(table.id, row.id, 'date', e.target.value)} 
+                                    onBlur={(e) => {
+                                      const val = e.target.value;
+                                      if (!val) return;
+                                      let m = '', d = '';
+                                      if (val.length === 4 && !isNaN(val)) {
+                                        m = val.substring(0,2); d = val.substring(2);
+                                      } else if (val.includes('.') && (!val.includes('('))) {
+                                        const p = val.split('.'); m = p[0]; d = p[1];
+                                      }
+                                      if (m && d) {
+                                        m = m.padStart(2, '0'); d = d.padStart(2, '0');
+                                        const yrMatch = table.title.match(/(\d{4})년/);
+                                        const y = yrMatch ? yrMatch[1] : new Date().getFullYear();
+                                        const dt = new Date(`${y}-${m}-${d}`);
+                                        if (!isNaN(dt.valueOf())) {
+                                          const days = ['일','월','화','수','목','금','토'];
+                                          updateRow(table.id, row.id, 'date', `${m}.${d}(${days[dt.getDay()]})`);
+                                        }
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-700 focus:bg-blue-50/20" 
+                                    placeholder={datePlaceholder} 
+                                  />
                                 </td>
-                                <td className="p-2">
-                                  <input value={row.time} onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="오전 10:00 ~ 12:00" />
+                                <td className="p-2 relative">
+                                  <input 
+                                    value={row.time} 
+                                    onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} 
+                                    onFocus={() => setActiveTimeRow(row.id)}
+                                    onBlur={(e) => {
+                                      const val = e.target.value.trim();
+                                      let newVal = val;
+                                      const parseT = (s) => {
+                                        const n = parseInt(s, 10);
+                                        if (isNaN(n)) return s;
+                                        if (n >= 8 && n <= 11) return `오전 ${n}:00`;
+                                        if (n === 12) return `오후 12:00`;
+                                        if (n >= 13 && n <= 23) return `오후 ${n-12}:00`;
+                                        if (n >= 1 && n <= 7) return `오후 ${n}:00`;
+                                        return `${n}:00`;
+                                      };
+                                      const pts = val.split(/\s+/);
+                                      if (pts.length === 1 && !isNaN(pts[0])) newVal = parseT(pts[0]);
+                                      else if (pts.length === 2 && !isNaN(pts[0]) && !isNaN(pts[1])) newVal = `${parseT(pts[0])} ~ ${parseT(pts[1])}`;
+                                      if (newVal !== val) updateRow(table.id, row.id, 'time', newVal);
+                                      setTimeout(() => setActiveTimeRow(null), 150);
+                                    }}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600 focus:bg-blue-50/20" 
+                                    placeholder="오전 10:00 ~ 12:00" 
+                                  />
+                                  {activeTimeRow === row.id && (
+                                    <div className="absolute left-2 top-11 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 w-64 flex flex-wrap gap-1.5 animate-fade-in-up">
+                                       {['오전 10:00 ~ 12:00', '오전 10:30 ~ 12:30', '오후 1:00 ~ 3:00', '오후 2:00 ~ 4:00', '종일'].map(t => (
+                                          <button key={t} onMouseDown={(e) => { e.preventDefault(); updateRow(table.id, row.id, 'time', t); setActiveTimeRow(null); }} className="px-2.5 py-1.5 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[12px] font-medium rounded-lg transition-colors border border-slate-100">
+                                            {t}
+                                          </button>
+                                       ))}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2">
                                   <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />

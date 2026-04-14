@@ -353,32 +353,43 @@
                           </tr>
                         </thead>
                         <tbody>
-                          {table.rows.map((row, i) => (
-                            <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors bg-white">
-                              <td className="p-2">
-                                <input value={row.date} onChange={e => updateRow(table.id, row.id, 'date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-700" placeholder="01.15(목)" />
-                              </td>
-                              <td className="p-2">
-                                <input value={row.time} onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="오전 10:00 ~ 12:00" />
-                              </td>
-                              <td className="p-2">
-                                <input value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
-                              </td>
-                              <td className="p-2">
-                                <input value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
-                              </td>
-                              <td className="p-2">
-                                <div className="flex justify-center gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity">
-                                  <button onClick={() => addRow(table.id, i)} className="w-7 h-7 rounded text-blue-500 hover:bg-blue-100 flex items-center justify-center transition-colors"><i className="fa-solid fa-plus text-xs"></i></button>
-                                  <div className="flex flex-col gap-[2px]">
-                                    <button onClick={() => moveRow(table.id, i, 'up')} disabled={i === 0} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-t flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-up text-[10px] text-slate-600"></i></button>
-                                    <button onClick={() => moveRow(table.id, i, 'down')} disabled={i === table.rows.length - 1} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-b flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-down text-[10px] text-slate-600"></i></button>
+                          {table.rows.map((row, i) => {
+                            let inheritedDate = "";
+                            for (let j = i - 1; j >= 0; j--) {
+                              if (table.rows[j].date && table.rows[j].date.trim() !== "") {
+                                inheritedDate = table.rows[j].date.trim();
+                                break;
+                              }
+                            }
+                            const datePlaceholder = inheritedDate || "01.15(목)";
+
+                            return (
+                              <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors bg-white">
+                                <td className="p-2">
+                                  <input value={row.date} onChange={e => updateRow(table.id, row.id, 'date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-700" placeholder={datePlaceholder} />
+                                </td>
+                                <td className="p-2">
+                                  <input value={row.time} onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="오전 10:00 ~ 12:00" />
+                                </td>
+                                <td className="p-2">
+                                  <input value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
+                                </td>
+                                <td className="p-2">
+                                  <input value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
+                                </td>
+                                <td className="p-2">
+                                  <div className="flex justify-center gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => addRow(table.id, i)} className="w-7 h-7 rounded text-blue-500 hover:bg-blue-100 flex items-center justify-center transition-colors"><i className="fa-solid fa-plus text-xs"></i></button>
+                                    <div className="flex flex-col gap-[2px]">
+                                      <button onClick={() => moveRow(table.id, i, 'up')} disabled={i === 0} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-t flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-up text-[10px] text-slate-600"></i></button>
+                                      <button onClick={() => moveRow(table.id, i, 'down')} disabled={i === table.rows.length - 1} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-b flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-down text-[10px] text-slate-600"></i></button>
+                                    </div>
+                                    <button onClick={() => deleteRow(table.id, row.id)} className="w-7 h-7 rounded text-rose-400 hover:bg-rose-100 flex items-center justify-center ml-1 transition-colors"><i className="fa-solid fa-xmark text-sm"></i></button>
                                   </div>
-                                  <button onClick={() => deleteRow(table.id, row.id)} className="w-7 h-7 rounded text-rose-400 hover:bg-rose-100 flex items-center justify-center ml-1 transition-colors"><i className="fa-solid fa-xmark text-sm"></i></button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

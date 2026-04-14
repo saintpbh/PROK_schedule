@@ -765,37 +765,58 @@
                               </thead>
                               <tbody>
                                 {filteredRows.map((row, i) => {
-                                  const hasDate = row.date && row.date.trim() !== '';
+                                  const myActualDate = row.date ? row.date.trim() : '';
+                                  let showDate = true;
+                                  let displayDateStr = myActualDate;
+                                  
+                                  let lastSeenDate = '';
+                                  for (let j = i - 1; j >= 0; j--) {
+                                    if (filteredRows[j].date && filteredRows[j].date.trim() !== '') {
+                                      lastSeenDate = filteredRows[j].date.trim();
+                                      break;
+                                    }
+                                  }
+
+                                  if (i > 0) {
+                                    if (!myActualDate || myActualDate === lastSeenDate) {
+                                      showDate = false;
+                                    }
+                                  } else {
+                                    if (!myActualDate) showDate = false;
+                                  }
+                                  
+                                  if (showDate && !myActualDate) displayDateStr = ''; // Fallback, shouldn't really happen on first row, but safe
+                                  
                                   const isLast = i === filteredRows.length - 1;
-                                const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
-                                const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
-                                return (
-                                  <tr key={row.id}>
-                                    <td style={{ 
-                                      padding: "10px 8px", 
-                                      borderRight: "1px solid #e2e8f0", 
-                                      borderBottom: bottomBorder,
-                                      backgroundColor: rowBg,
-                                      fontWeight: "bold", 
-                                      color: "#1e3a8a",
-                                      borderTop: hasDate ? "1px solid #cbd5e1" : "1px dashed #e2e8f0",
-                                      verticalAlign: "middle"
-                                    }}>
-                                      {hasDate ? row.date : ''}
-                                    </td>
-                                    <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
-                                      {row.time}
-                                    </td>
-                                    <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, textAlign: "left", color: "#1e293b", fontWeight: "600", verticalAlign: "middle" }}>
-                                      {row.title}
-                                    </td>
-                                    <td style={{ padding: "10px 8px", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
-                                      {row.dept}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
+                                  const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                                  const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
+                                  return (
+                                    <tr key={row.id}>
+                                      <td style={{ 
+                                        padding: "10px 8px", 
+                                        borderRight: "1px solid #e2e8f0", 
+                                        borderBottom: bottomBorder,
+                                        backgroundColor: rowBg,
+                                        fontWeight: "bold", 
+                                        color: "#1e3a8a",
+                                        borderTop: showDate ? "1px solid #cbd5e1" : "1px dashed #e2e8f0",
+                                        verticalAlign: "middle"
+                                      }}>
+                                        {showDate ? displayDateStr : ''}
+                                      </td>
+                                      <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
+                                        {row.time}
+                                      </td>
+                                      <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, textAlign: "left", color: "#1e293b", fontWeight: "600", verticalAlign: "middle" }}>
+                                        {row.title}
+                                      </td>
+                                      <td style={{ padding: "10px 8px", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
+                                        {row.dept}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
                           </table>
 
                         </div>

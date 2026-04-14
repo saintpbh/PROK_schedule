@@ -228,15 +228,17 @@
         saveToDb(tables.map(t => t.id === id ? { ...t, title } : t));
       };
 
-      const addRow = (tableId, index) => {
+      const addRow = (tableId, index, rowData = {}) => {
+        const newId = genId();
         saveToDb(tables.map(t => {
           if (t.id === tableId) {
             const newRows = [...t.rows];
-            newRows.splice(index + 1, 0, { id: genId(), date: '', time: '', title: '', dept: '' });
+            newRows.splice(index + 1, 0, { id: newId, date: '', time: '', title: '', dept: '', ...rowData });
             return { ...t, rows: newRows };
           }
           return t;
         }));
+        return newId;
       };
 
       const updateRow = (tableId, rowId, field, val) => {
@@ -594,6 +596,7 @@
                                 </td>
                                 <td className="p-2 align-top">
                                   <input 
+                                    id={`time-input-${row.id}`}
                                     value={row.time} 
                                     onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} 
                                     onFocus={() => setActiveTimeRow(row.id)}
@@ -652,7 +655,49 @@
                                   <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
                                 </td>
                                 <td className="p-2">
-                                  <input list="dept-suggestions" value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
+                                  <input list="dept-suggestions" value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} 
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        let nextDateData = {};
+                                        if (e.ctrlKey) {
+                                          let currentDateStr = row.date && row.date.trim() !== '' ? row.date.trim() : inheritedDate;
+                                          if (currentDateStr) {
+                                            const m = currentDateStr.match(/(\d{1,2})\.(\d{1,2})/);
+                                            if (m) {
+                                              let year = new Date().getFullYear();
+                                              const yt = table.title.match(/(\d{4})년/);
+                                              if (yt) year = parseInt(yt[1], 10);
+                                              let month = parseInt(m[1], 10);
+                                              let day = parseInt(m[2], 10);
+                                              let d = new Date(year, month - 1, day);
+                                              d.setDate(d.getDate() + 1);
+                                              
+                                              if (d.getDay() === 6) {
+                                                d.setDate(d.getDate() + 2);
+                                                alert('주말(토/일)을 건너뛰고 다음 월요일을 생성합니다!');
+                                              } else if (d.getDay() === 0) {
+                                                d.setDate(d.getDate() + 1);
+                                                alert('주말(일)을 건너뛰고 다음 월요일을 생성합니다!');
+                                              }
+                                              
+                                              const days = ['일', '월', '화', '수', '목', '금', '토'];
+                                              const newMonth = String(d.getMonth() + 1).padStart(2, '0');
+                                              const newDay = String(d.getDate()).padStart(2, '0');
+                                              const newWeekday = days[d.getDay()];
+                                              
+                                              nextDateData.date = `${newMonth}.${newDay}(${newWeekday})`;
+                                            }
+                                          }
+                                        }
+                                        const newId = addRow(table.id, i, nextDateData);
+                                        setTimeout(() => {
+                                          const el = document.getElementById(`time-input-${newId}`);
+                                          if (el) el.focus();
+                                        }, 100);
+                                      }
+                                    }}
+                                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
                                 </td>
                                 <td className="p-2">
                                   <div className="flex justify-center gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity">

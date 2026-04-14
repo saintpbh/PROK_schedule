@@ -354,6 +354,7 @@
           setIsLoggedIn(true);
           sessionStorage.setItem('prok_admin_logged_in', 'true');
           setShowLoginModal(false);
+          setViewMode('edit');
           setLoginId('');
           setLoginPw('');
         } else {
@@ -377,20 +378,24 @@
                   <i className="fa-regular fa-calendar-check text-lg"></i>
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-slate-800 leading-tight">총회 게시판 일정 관리</h1>
-                  <p className="text-[11px] text-slate-500 font-medium">Smart Schedule Editor</p>
+                  <h1 className="text-[15px] sm:text-lg font-bold text-slate-800 leading-tight shrink-0">
+                    {isLoggedIn ? '총회게시판 일정관리' : '한국기독교장로회 총회본부 일정'}
+                  </h1>
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium hidden sm:block">
+                    {isLoggedIn ? 'Smart Schedule Editor' : 'Public Schedule View'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center">
                 {viewMode === 'preview' && (
-                  <div className="mr-4 relative hidden sm:block">
+                  <div className="mr-2 sm:mr-4 relative block">
                     <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                     <input 
                       type="text" 
-                      placeholder="부서, 일정 검색..." 
+                      placeholder="부서/일정 검색..." 
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-3 py-1.5 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-100 w-48 transition-all"
+                      className={`pl-8 pr-3 py-1.5 bg-slate-100 border-none rounded-xl text-[13px] sm:text-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none ${isLoggedIn ? 'w-48' : 'w-28 sm:w-48 md:w-64'}`}
                     />
                   </div>
                 )}

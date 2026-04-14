@@ -108,6 +108,120 @@
       }
     ];
 
+    const ArchiveView = () => {
+      const [searchQuery, setSearchQuery] = useState('');
+      const [year, setYear] = useState('2025');
+      
+      const mockHistoricalEvents = [
+        { id: 1, year: '1953', title: '한국기독교장로회 제38회 총회 창립', desc: '호헌총회로 모여 새 역사를 시작하다.', tag: '창립' },
+        { id: 2, year: '1973', title: '한국기독교장로회 선언문 발표', desc: '제58회 총회, 시대를 향한 예언자적 목소리', tag: '선언' },
+        { id: 3, year: '1987', title: '평화통일 희년선언', desc: '민족의 통일과 평화를 위한 원년', tag: '평화' },
+        { id: 4, year: '2015', title: '제100회 총회', desc: '새로운 100년을 향한 다짐', tag: '총회' },
+      ];
+
+      const mockArchiveRows = [
+        { date: '12.01(월)', dept: '총회역사위원회', title: '제38회 한국기독교장로회 창립 기념 학술대회' },
+        { date: '11.15(수)', dept: '국내선교부', title: '제100회 총회 기념비 제막식' },
+        { date: '08.15(토)', dept: '평화공동체운동본부', title: '평화통일 희년 선언 30주년 기도회' },
+        { date: '04.19(목)', dept: '교육국', title: '교단 역사 교재 편찬위원회 발족' },
+      ];
+
+      return (
+        <div className="min-h-screen bg-[#f7fafc] font-sans pb-20 fade-in">
+          {/* Hero Section */}
+          <div className="bg-gradient-to-br from-[#001237] to-[#122752] text-white pt-14 pb-20 px-4 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-400 via-transparent to-transparent"></div>
+            
+            <div className="max-w-5xl mx-auto relative z-10">
+              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>총회 역사 아카이브</h1>
+              <p className="text-blue-200 text-lg md:text-xl font-light mb-10 opacity-90 leading-relaxed max-w-2xl">
+                지나온 발자취를 돌아보고 내일을 준비합니다.<br/>
+                과거의 중요한 회의, 선언, 그리고 일정들을 검색해보세요.
+              </p>
+
+              {/* Search Panel (Glassmorphism) */}
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 p-2 md:p-3 rounded-2xl flex flex-col md:flex-row gap-3 shadow-2xl">
+                <select 
+                  className="bg-white/95 text-[#001237] font-bold px-5 py-3.5 rounded-xl outline-none focus:ring-4 ring-blue-500/30 cursor-pointer appearance-none md:w-48 shadow-sm"
+                  value={year}
+                  onChange={e => setYear(e.target.value)}
+                >
+                  <option value="all">전체 연도</option>
+                  <option value="2025">2025년</option>
+                  <option value="2024">2024년</option>
+                  <option value="2015">2015년 (제100회)</option>
+                  <option value="1987">1987년 (희년선언)</option>
+                  <option value="1973">1973년 (선언문)</option>
+                  <option value="1953">1953년 (창립)</option>
+                </select>
+                <div className="relative flex-1">
+                  <i className="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                  <input 
+                    type="text" 
+                    placeholder="행사 제목, 핵심 키워드로 역사 기록 검색..." 
+                    className="w-full bg-white text-slate-800 pl-14 pr-5 py-3.5 rounded-xl outline-none focus:ring-4 ring-blue-500/30 font-medium text-lg placeholder:text-slate-400 shadow-sm"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-5xl mx-auto px-4 -mt-8 relative z-20">
+            {/* Milestone Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+              {mockHistoricalEvents.map(event => (
+                <div key={event.id} className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 hover:-translate-y-1 transition-transform cursor-pointer group hover:shadow-xl hover:border-blue-100 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="text-xs font-bold bg-[#eef1f3] text-[#444650] px-2.5 py-1 rounded-md tracking-widest">{event.year}</span>
+                      <i className="fa-solid fa-arrow-up-right-from-square text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </div>
+                    <h3 className="font-bold text-[#181c1e] text-lg leading-tight mb-3 group-hover:text-blue-700 transition-colors" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>{event.title}</h3>
+                  </div>
+                  <p className="text-[#506071] text-sm leading-relaxed">{event.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Timeline List */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-20">
+              <div className="flex items-center justify-between mb-8 pb-6 border-b border-slate-100">
+                <h2 className="text-2xl font-bold text-[#001237]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+                  {year === 'all' ? '전체 기록' : `${year}년 기록`}
+                </h2>
+                <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-inner">
+                  {mockArchiveRows.length} 건
+                </div>
+              </div>
+
+              <div className="flex flex-col relative before:content-[''] before:absolute before:left-[11px] md:before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
+                {mockArchiveRows.map((row, idx) => (
+                  <div key={idx} className="relative pl-10 md:pl-12 py-5 group hover:bg-slate-50 transition-colors -mx-4 px-4 rounded-xl">
+                    <div className="absolute left-[8px] md:left-[8px] top-7 w-2 h-2 rounded-full bg-[#c5c6d2] group-hover:bg-[#001237] transition-colors ring-4 ring-white"></div>
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8">
+                      <div className="shrink-0 w-24 text-sm font-bold text-[#506071] font-mono tracking-tighter">
+                        {row.date}
+                      </div>
+                      <div className="shrink-0 w-36">
+                        <span className="inline-block bg-[#f1f4f6] text-[#444650] text-xs font-bold px-2.5 py-1 rounded-md">
+                          {row.dept}
+                        </span>
+                      </div>
+                      <div className="flex-1 text-[15px] font-medium text-[#181c1e] leading-snug group-hover:text-blue-700 transition-colors cursor-pointer">
+                        {row.title}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [showLoginModal, setShowLoginModal] = useState(false);
@@ -489,6 +603,15 @@
                   </div>
                 </div>
                 <button 
+                  onClick={() => setViewMode(viewMode === 'archive' ? 'preview' : 'archive')}
+                  className={`px-3 sm:px-4 py-1.5 flex rounded-xl text-xs sm:text-sm font-bold border items-center transition-all shadow-sm ${viewMode === 'archive' ? 'bg-[#001237] hover:bg-[#122752] text-white border-[#001237]' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'}`}
+                  title={viewMode === 'archive' ? "현재 일정으로 돌아가기" : "과거 아카이브 검색하기"}
+                >
+                  <i className={`fa-solid ${viewMode === 'archive' ? 'fa-calendar-days' : 'fa-clock-rotate-left'} mr-1 sm:mr-2`}></i>
+                  <span className="hidden sm:inline">{viewMode === 'archive' ? '현재 일정' : '지난 역사'}</span>
+                  <span className="sm:hidden">{viewMode === 'archive' ? '현재' : '과거'}</span>
+                </button>
+                <button 
                   onClick={scrollToTodayNearest}
                   className="px-3 sm:px-4 py-1.5 flex bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs sm:text-sm font-bold border border-emerald-200 items-center transition-all shadow-sm group"
                   title="오늘(가까운 시간) 예정된 일정 보기"
@@ -619,7 +742,9 @@
               </div>
             )}
 
-            {viewMode === 'edit' ? (
+            {viewMode === 'archive' ? (
+              <ArchiveView />
+            ) : viewMode === 'edit' ? (
               <div className="space-y-8 animate-fade-in pb-20">
                 <button onClick={addTable} className="w-full py-5 mb-2 border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl text-blue-600 font-bold hover:bg-blue-100 hover:border-blue-400 transition-all shadow-sm flex items-center justify-center gap-2">
                   <i className="fa-regular fa-calendar-plus text-xl"></i> 월별 일정표 포맷 추가하기 (최근 일정부터 이곳에 작성하세요)

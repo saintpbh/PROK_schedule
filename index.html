@@ -119,6 +119,50 @@
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
       const previewRef = useRef(null);
 
+      // DaouOffice Settings
+      const [showDaouSettings, setShowDaouSettings] = useState(false);
+      const [daouUrl, setDaouUrl] = useState(() => localStorage.getItem('daou_url') || '');
+      const [daouId, setDaouId] = useState(() => localStorage.getItem('daou_id') || '');
+      const [daouPw, setDaouPw] = useState(() => localStorage.getItem('daou_pw') || '');
+      const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('vercel_proxy') || 'https://prok-schedule.vercel.app/api/proxy');
+      const [isSyncing, setIsSyncing] = useState(false);
+
+      const fetchFromDaou = async () => {
+        if (!daouUrl || !daouId || !daouPw || !proxyUrl) return alert('설정에서 주소, 아이디, 비밀번호, 프록시 주소를 모두 입력해주세요.');
+        setIsSyncing(true);
+        try {
+          const auth = btoa(`${daouId}:${daouPw}`);
+          const targetEndpoint = daouUrl.endsWith('/') ? `${daouUrl}.well-known/caldav` : `${daouUrl}/.well-known/caldav`;
+          
+          // Vercel 프록시를 경유하도록 URL 구성
+          const proxyEndpoint = `${proxyUrl}?url=${encodeURIComponent(targetEndpoint)}`;
+
+          const response = await fetch(proxyEndpoint, {
+            method: 'PROPFIND',
+            headers: {
+              'Authorization': `Basic ${auth}`,
+              'Depth': '0',
+              'Content-Type': 'application/xml; charset=utf-8'
+            },
+            body: `<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`
+          });
+
+          if (!response.ok) {
+            if (response.status === 401) throw new Error("401 Unauthorized - 아이디나 비밀번호를 다시 확인해주세요.");
+            throw new Error(`서버 응답 오류: ${response.status} (Vercel 프록시가 정상 배포되었는지 확인해주세요)`);
+          }
+          alert('연동(인증)에 성공했습니다! (Vercel 프록시 우회 통과 확인. 상세 데이터 파싱은 추가 구현 중입니다)');
+        } catch (e) {
+          alert(`통신 오류가 발생했습니다.\n\n상세 에러: ${e.message}`);
+        } finally {
+          setIsSyncing(false);
+        }
+      };
+
+      const exportToDaou = async () => {
+        alert('내보내기 기능 준비 중입니다.');
+      };
+
       // Load from Firebase
       useEffect(() => {
         if (!isLoggedIn) return;
@@ -310,18 +354,79 @@
                   <p className="text-[11px] text-slate-500 font-medium">Smart Schedule Editor</p>
                 </div>
               </div>
-              <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
-                <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
-                  <i className="fa-solid fa-pen-nib mr-2"></i>작성/수정
-                </button>
-                <button onClick={() => setViewMode('preview')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'preview' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
-                  <i className="fa-regular fa-copy mr-2"></i>발행 및 복사
+              <div className="flex items-center">
+                <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
+                  <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <i className="fa-solid fa-pen-nib mr-2"></i>작성/수정
+                  </button>
+                  <button onClick={() => setViewMode('preview')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'preview' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <i className="fa-regular fa-copy mr-2"></i>발행 및 복사
+                  </button>
+                </div>
+                <button onClick={() => setShowDaouSettings(true)} className="ml-3 px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-sm font-bold transition-all border border-indigo-100 shadow-sm flex items-center">
+                  <i className="fa-solid fa-gear mr-2"></i>다우오피스 동기화
                 </button>
               </div>
             </div>
           </header>
 
           <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8">
+
+            {/* DaouOffice Settings Modal */}
+            {showDaouSettings && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in border border-slate-200 p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <i className="fa-solid fa-cloud-arrow-down text-indigo-500"></i> 다우오피스 CalDAV 설정
+                    </h2>
+                    <button onClick={() => setShowDaouSettings(false)} className="text-slate-400 hover:text-slate-600">
+                      <i className="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">다우오피스 접속 주소</label>
+                      <input value={daouUrl} onChange={e => setDaouUrl(e.target.value)} placeholder="예: https://gw.company.com" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">로그인 ID</label>
+                      <input value={daouId} onChange={e => setDaouId(e.target.value)} placeholder="사번 또는 이메일 (@포함)" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">비밀번호</label>
+                      <input type="password" value={daouPw} onChange={e => setDaouPw(e.target.value)} placeholder="비밀번호" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
+                    </div>
+
+                    <div className="pt-2">
+                      <button onClick={() => {
+                        localStorage.setItem('daou_url', daouUrl);
+                        localStorage.setItem('daou_id', daouId);
+                        localStorage.setItem('daou_pw', daouPw);
+                        alert('다우오피스 접속 정보가 브라우저에 안전히 저장되었습니다.');
+                      }} className="w-full py-2.5 mb-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">설정 저장</button>
+
+                      <div className="flex gap-2">
+                        <button onClick={fetchFromDaou} disabled={isSyncing} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
+                          {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-download"></i>}
+                          가져오기
+                        </button>
+                        <button onClick={exportToDaou} disabled={isSyncing} className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
+                          {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-upload"></i>}
+                          내보내기
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500 mt-4 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <strong className="text-rose-500">주의:</strong> 브라우저 보안 정책(CORS)으로 인해 차단될 수 있습니다. <code>Fetch Error</code> 발생 시 "Allow CORS" 등의 확장 프로그램을 활성화하세요.<br/>(비밀번호는 로컬PC에만 보관됩니다)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {viewMode === 'edit' ? (
               <div className="space-y-8 animate-fade-in pb-20">
                 {tables.map(table => (

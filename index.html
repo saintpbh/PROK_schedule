@@ -368,6 +368,77 @@
         setViewMode('preview');
       };
 
+      const scrollToTodayNearest = () => {
+        const now = new Date();
+        const curY = now.getFullYear();
+        let nearestRowId = null;
+        let minDiff = Infinity;
+        let prevDateObj = null;
+
+        for (const table of tables) {
+           const yrMatch = table.title.match(/(\d{4})년/);
+           const y = yrMatch ? parseInt(yrMatch[1], 10) : curY;
+           for (let i = 0; i < table.rows.length; i++) {
+             const r = table.rows[i];
+             let rDateStr = r.date ? r.date.trim() : '';
+             if (rDateStr) {
+               const mMatch = rDateStr.match(/(\d{1,2})\.(\d{1,2})/);
+               if (mMatch) {
+                 prevDateObj = new Date(y, parseInt(mMatch[1], 10) - 1, parseInt(mMatch[2], 10));
+               } 
+             }
+             if (!prevDateObj) continue;
+             
+             let targetDt = new Date(prevDateObj.getTime());
+             let h = 0, min = 0;
+             if (r.time) {
+                const tMatch = r.time.match(/(오전|오후)?\s*(\d{1,2}):(\d{2})/);
+                if (tMatch) {
+                   h = parseInt(tMatch[2], 10);
+                   min = parseInt(tMatch[3], 10);
+                   if (tMatch[1] === '오후' && h < 12) h += 12;
+                   if (tMatch[1] === '오전' && h === 12) h = 0;
+                } else {
+                   const tMatch2 = r.time.match(/(\d{1,2})시/);
+                   if (tMatch2) h = parseInt(tMatch2[1], 10);
+                }
+             }
+             targetDt.setHours(h, min, 0, 0);
+             
+             const diff = targetDt.getTime() - now.getTime();
+             if (diff >= -7200000 && diff < minDiff) { 
+               minDiff = diff;
+               nearestRowId = r.id;
+             }
+           }
+        }
+        
+        if (nearestRowId) {
+          const el = document.getElementById(`row-${nearestRowId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (viewMode === 'edit') {
+              el.classList.add('bg-yellow-100');
+              setTimeout(() => el.classList.remove('bg-yellow-100'), 2000);
+            } else {
+              const origBgs = [];
+              Array.from(el.children).forEach((td, idx) => {
+                origBgs[idx] = td.style.backgroundColor;
+                td.style.transition = 'background-color 1s';
+                td.style.backgroundColor = '#fef08a';
+              });
+              setTimeout(() => {
+                Array.from(el.children).forEach((td, idx) => {
+                  td.style.backgroundColor = origBgs[idx];
+                });
+              }, 2000);
+            }
+          }
+        } else {
+          alert('예정된 오늘/향후 일정을 찾을 수 없습니다.');
+        }
+      };
+
       return (
         <div className="min-h-screen flex flex-col">
           {/* Top Bar */}
@@ -388,7 +459,14 @@
                   )}
                 </div>
               </div>
-              <div className={`flex items-center ${!isLoggedIn ? 'absolute right-4 top-1/2 -translate-y-1/2' : ''}`}>
+              <div className={`flex items-center gap-2 sm:gap-3 ${!isLoggedIn ? 'absolute right-4 top-1/2 -translate-y-1/2' : ''}`}>
+                <button 
+                  onClick={scrollToTodayNearest}
+                  className="px-3 sm:px-4 py-1.5 flex bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs sm:text-sm font-bold border border-emerald-200 items-center transition-all shadow-sm"
+                  title="오늘(가까운 시간) 예정된 일정 보기"
+                >
+                  <i className="fa-solid fa-location-crosshairs mr-1 sm:mr-2"></i>오늘 일정
+                </button>
                 {isLoggedIn && (
                   <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
                     <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -560,7 +638,7 @@
                             const datePlaceholder = inheritedDate || `${defaultMonthStr}.15(목)`;
 
                             return (
-                              <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors bg-white">
+                              <tr id={`row-${row.id}`} key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors duration-1000 bg-white">
                                 <td className="p-2">
                                   <input 
                                     value={row.date} 
@@ -850,7 +928,7 @@
                                   const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
                                   const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
                                   return (
-                                    <tr key={row.id}>
+                                    <tr id={`row-${row.id}`} key={row.id}>
                                       <td style={{ 
                                         padding: "10px 8px", 
                                         borderRight: "1px solid #e2e8f0", 

@@ -543,7 +543,7 @@
                         <thead>
                           <tr className="bg-white border-b border-slate-200 text-slate-500 text-sm">
                             <th className="font-semibold px-4 py-3 w-[15%]">날짜 <span className="font-normal text-slate-400 text-xs ml-1">(비우면 위와 연결)</span></th>
-                            <th className="font-semibold px-4 py-3 w-[20%]">시간</th>
+                            <th className="font-semibold px-4 py-3 w-[20%]">시간 <span className="font-normal text-slate-400 text-[11px] tracking-tight ml-1">(24시간제 입력, 종일은 24입력)</span></th>
                             <th className="font-semibold px-4 py-3 w-[40%]">제목</th>
                             <th className="font-semibold px-4 py-3 w-[18%]">담당</th>
                             <th className="font-semibold px-4 py-3 w-[7%] text-center"></th>
@@ -600,8 +600,9 @@
                                     onBlur={(e) => {
                                       const val = e.target.value.trim();
                                       let newVal = val;
-                                      
-                                      if (/^[\d\s:~\-]+$/.test(val)) {
+                                      if (val === "24") {
+                                        newVal = "종일";
+                                      } else if (/^[\d\s:~\-]+$/.test(val)) {
                                         const parseT = (s) => {
                                           let h, m;
                                           if (/^\d{3,4}$/.test(s)) {

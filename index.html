@@ -125,7 +125,7 @@
         return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
       }, [tables]);
 
-      const [viewMode, setViewMode] = useState('preview');
+      const [viewMode, setViewMode] = useState(() => sessionStorage.getItem('prok_admin_logged_in') === 'true' ? 'edit' : 'preview');
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
       const previewRef = useRef(null);

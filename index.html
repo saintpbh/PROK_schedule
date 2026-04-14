@@ -372,33 +372,23 @@
         <div className="min-h-screen flex flex-col">
           {/* Top Bar */}
           <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className={`max-w-7xl mx-auto px-4 h-16 flex items-center relative ${isLoggedIn ? 'justify-between' : 'justify-center'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-md">
                   <i className="fa-regular fa-calendar-check text-lg"></i>
                 </div>
-                <div>
-                  <h1 className="text-[15px] sm:text-lg font-bold text-slate-800 leading-tight shrink-0">
+                <div className="flex flex-col justify-center">
+                  <h1 className="text-[17px] sm:text-xl font-extrabold text-slate-800 leading-tight shrink-0 tracking-tight">
                     {isLoggedIn ? '총회게시판 일정관리' : '한국기독교장로회 총회본부 일정'}
                   </h1>
-                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium hidden sm:block">
-                    {isLoggedIn ? 'Smart Schedule Editor' : 'Public Schedule View'}
-                  </p>
+                  {isLoggedIn && (
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium hidden sm:block">
+                      Smart Schedule Editor
+                    </p>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center">
-                {viewMode === 'preview' && (
-                  <div className="mr-2 sm:mr-4 relative block">
-                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input 
-                      type="text" 
-                      placeholder="부서/일정 검색..." 
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      className={`pl-8 pr-3 py-1.5 bg-slate-100 border-none rounded-xl text-[13px] sm:text-sm focus:ring-2 focus:ring-blue-100 transition-all outline-none ${isLoggedIn ? 'w-48' : 'w-28 sm:w-48 md:w-64'}`}
-                    />
-                  </div>
-                )}
+              <div className={`flex items-center ${!isLoggedIn ? 'absolute right-4 top-1/2 -translate-y-1/2' : ''}`}>
                 {isLoggedIn && (
                   <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
                     <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -734,8 +724,21 @@
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col lg:flex-row gap-8 items-start animate-fade-in relative pb-10">
-                {/* Fixed Control Panel */}
+              <div className="animate-fade-in">
+                {/* Search Bar Below Title */}
+                <div className="w-full max-w-2xl mx-auto mb-8 relative">
+                  <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                  <input 
+                    type="text" 
+                    placeholder="부서명, 행사 제목, 날짜 키워드로 빠르게 일정을 찾아보세요..." 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 shadow-sm rounded-2xl text-[15px] focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none font-medium text-slate-700"
+                  />
+                </div>
+
+                <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-10">
+                  {/* Fixed Control Panel */}
                 {isLoggedIn && (
                 <div className="w-full lg:w-72 shrink-0 lg:sticky lg:top-24 space-y-4">
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

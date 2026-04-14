@@ -116,6 +116,14 @@
 
       const [tables, setTables] = useState(initialData);
 
+      const allTitles = React.useMemo(() => {
+        return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.title)).filter(t => t && t.trim() !== '')));
+      }, [tables]);
+
+      const allDepts = React.useMemo(() => {
+        return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
+      }, [tables]);
+
       const [viewMode, setViewMode] = useState('preview');
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
@@ -192,7 +200,21 @@
       const genId = () => Math.random().toString(36).substr(2, 9);
 
       const addTable = () => {
-        saveToDb([...tables, { id: genId(), title: '새로운 월 일정', rows: [{ id: genId(), date: '', time: '', title: '', dept: '' }] }]);
+        let newTitle = '새로운 월 일정';
+        if (tables.length > 0) {
+          const lastTable = tables[tables.length - 1];
+          const match = lastTable.title.match(/(\d{4})년\s*(\d{1,2})월/);
+          if (match) {
+            let year = parseInt(match[1], 10);
+            let month = parseInt(match[2], 10) + 1;
+            if (month > 12) {
+              year += 1;
+              month = 1;
+            }
+            newTitle = `${year}년 ${month}월 일정`;
+          }
+        }
+        saveToDb([...tables, { id: genId(), title: newTitle, rows: [{ id: genId(), date: '', time: '', title: '', dept: '' }] }]);
       };
 
       const deleteTable = (id) => {
@@ -535,7 +557,9 @@
                                 break;
                               }
                             }
-                            const datePlaceholder = inheritedDate || "01.15(목)";
+                            const monthMatch = table.title.match(/(\d{1,2})월/);
+                            const defaultMonthStr = monthMatch ? monthMatch[1].padStart(2, '0') : "01";
+                            const datePlaceholder = inheritedDate || `${defaultMonthStr}.15(목)`;
 
                             return (
                               <tr key={row.id} className="border-b border-slate-100 hover:bg-blue-50/40 group transition-colors bg-white">
@@ -546,10 +570,10 @@
                                   <input value={row.time} onChange={e => updateRow(table.id, row.id, 'time', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="오전 10:00 ~ 12:00" />
                                 </td>
                                 <td className="p-2">
-                                  <input value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
+                                  <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
                                 </td>
                                 <td className="p-2">
-                                  <input value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
+                                  <input list="dept-suggestions" value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
                                 </td>
                                 <td className="p-2">
                                   <div className="flex justify-center gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity">
@@ -708,6 +732,12 @@
                 </div>
               </div>
             )}
+            <datalist id="title-suggestions">
+              {allTitles.map((t, idx) => <option key={idx} value={t} />)}
+            </datalist>
+            <datalist id="dept-suggestions">
+              {allDepts.map((d, idx) => <option key={idx} value={d} />)}
+            </datalist>
           </main>
         </div>
       );

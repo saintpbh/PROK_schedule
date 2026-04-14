@@ -605,10 +605,14 @@
                                       let newVal = val;
                                       if (val === "24") {
                                         newVal = "종일";
-                                      } else if (/^[\d\s:~\-]+$/.test(val)) {
+                                       } else if (/^[\d\s:~\-\.]+$/.test(val)) {
                                         const parseT = (s) => {
                                           let h, m;
-                                          if (/^\d{3,4}$/.test(s)) {
+                                           if (s.includes('.')) {
+                                             const parts = s.split('.');
+                                             h = parseInt(parts[0], 10);
+                                             m = parts[1] === '5' ? '30' : (parts[1] + '0').substring(0, 2);
+                                           } else                                           if (/^\d{3,4}$/.test(s)) {
                                             h = parseInt(s.substring(0, s.length - 2), 10);
                                             m = s.substring(s.length - 2);
                                           } else if (/^\d{1,2}:\d{2}$/.test(s)) {
@@ -641,7 +645,7 @@
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600 focus:bg-blue-50/20" 
                                     placeholder="오전 10:00 ~ 12:00" 
                                   />
-                                  {activeTimeRow === row.id && (
+                                  {/* activeTimeRow === row.id && (
                                     <div className="mt-2 bg-slate-50 border border-slate-200 shadow-sm rounded-xl p-2 w-full flex flex-wrap gap-1.5 animate-fade-in-up">
                                        {['오전 10:00 ~ 12:00', '오전 10:30 ~ 12:30', '오후 1:00 ~ 3:00', '오후 2:00 ~ 4:00', '종일'].map(t => (
                                           <button key={t} tabIndex="-1" onMouseDown={(e) => { e.preventDefault(); updateRow(table.id, row.id, 'time', t); setActiveTimeRow(null); }} className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[12px] font-medium rounded-lg transition-colors border border-slate-200 shadow-sm">
@@ -649,7 +653,7 @@
                                           </button>
                                        ))}
                                     </div>
-                                  )}
+                                  ) */}
                                 </td>
                                 <td className="p-2">
                                   <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />

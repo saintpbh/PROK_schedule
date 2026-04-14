@@ -116,6 +116,12 @@
       const [searchQuery, setSearchQuery] = useState('');
       const [activeTimeRow, setActiveTimeRow] = useState(null);
       const [viewMode, setViewMode] = useState('preview');
+      const [currentTime, setCurrentTime] = useState(new Date());
+
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
 
       useEffect(() => {
         const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
@@ -474,12 +480,20 @@
                 </div>
               </div>
               <div className={`flex items-center gap-2 sm:gap-3 ${!isLoggedIn ? 'absolute right-4 top-1/2 -translate-y-1/2' : ''}`}>
+                <div className="hidden md:flex flex-col items-end mr-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100 shadow-inner">
+                  <div className="text-[11px] font-bold tracking-wide text-slate-400">
+                    {currentTime.getFullYear()}년 {currentTime.getMonth() + 1}월 {currentTime.getDate()}일 ({['일','월','화','수','목','금','토'][currentTime.getDay()]})
+                  </div>
+                  <div className="text-[15px] font-black text-slate-700 tracking-tight font-mono">
+                    {currentTime.toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                </div>
                 <button 
                   onClick={scrollToTodayNearest}
-                  className="px-3 sm:px-4 py-1.5 flex bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs sm:text-sm font-bold border border-emerald-200 items-center transition-all shadow-sm"
+                  className="px-3 sm:px-4 py-1.5 flex bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs sm:text-sm font-bold border border-emerald-200 items-center transition-all shadow-sm group"
                   title="오늘(가까운 시간) 예정된 일정 보기"
                 >
-                  <i className="fa-solid fa-location-crosshairs mr-1 sm:mr-2"></i>오늘 일정
+                  <i className="fa-solid fa-location-crosshairs mr-1 sm:mr-2 group-hover:animate-spin"></i>오늘 일정
                 </button>
                 {isLoggedIn && (
                   <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">

@@ -109,12 +109,14 @@
 
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('prok_admin_logged_in') === 'true');
+      const [showLoginModal, setShowLoginModal] = useState(false);
       const [loginId, setLoginId] = useState('');
       const [loginPw, setLoginPw] = useState('');
+      const [searchQuery, setSearchQuery] = useState('');
 
       const [tables, setTables] = useState(initialData);
 
-      const [viewMode, setViewMode] = useState('edit');
+      const [viewMode, setViewMode] = useState('preview');
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
       const previewRef = useRef(null);
@@ -128,16 +130,16 @@
       const [isSyncing, setIsSyncing] = useState(false);
 
       const fetchFromDaou = async () => {
-        if (!daouUrl || !daouId || !daouPw || !proxyUrl) return alert('설정에서 주소, 아이디, 비밀번호, 프록시 주소를 모두 입력해주세요.');
+        if (!daouUrl || !daouId || !daouPw) return alert('설정에서 주소, 아이디, 비밀번호를 입력해주세요.');
         setIsSyncing(true);
         try {
           const auth = btoa(`${daouId}:${daouPw}`);
           const targetEndpoint = daouUrl.endsWith('/') ? `${daouUrl}.well-known/caldav` : `${daouUrl}/.well-known/caldav`;
           
-          // Vercel 프록시를 경유하도록 URL 구성
-          const proxyEndpoint = `${proxyUrl}?url=${encodeURIComponent(targetEndpoint)}`;
+          // 프록시 URL이 있으면 경유, 비워두면(다이렉트 통신) 확장앱 모드로 동작
+          const endpointToFetch = proxyUrl ? `${proxyUrl}?url=${encodeURIComponent(targetEndpoint)}` : targetEndpoint;
 
-          const response = await fetch(proxyEndpoint, {
+          const response = await fetch(endpointToFetch, {
             method: 'PROPFIND',
             headers: {
               'Authorization': `Basic ${auth}`,
@@ -165,8 +167,6 @@
 
       // Load from Firebase
       useEffect(() => {
-        if (!isLoggedIn) return;
-        
         const onData = scheduleRef.on('value', (snapshot) => {
           const data = snapshot.val();
           if (data) {
@@ -181,7 +181,7 @@
         });
 
         return () => scheduleRef.off('value', onData);
-      }, [isLoggedIn]);
+      }, []);
 
       // Save to Firebase
       const saveToDb = (newTables) => {
@@ -249,6 +249,28 @@
         }));
       };
 
+      const duplicateRow = (tableId, index) => {
+        saveToDb(tables.map(t => {
+          if (t.id === tableId) {
+            const newRows = [...t.rows];
+            const sourceRow = newRows[index];
+            newRows.splice(index + 1, 0, { ...sourceRow, id: genId() });
+            return { ...t, rows: newRows };
+          }
+          return t;
+        }));
+      };
+
+      const moveTable = (idx, dir) => {
+        const arr = [...tables];
+        if (dir === 'up' && idx > 0) {
+          [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+        } else if (dir === 'down' && idx < arr.length - 1) {
+          [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
+        }
+        saveToDb(arr);
+      };
+
       const copyToClipboard = async () => {
         if (!previewRef.current) return;
         try {
@@ -306,39 +328,19 @@
         if (loginId === 'admin' && loginPw === 'prok7600') {
           setIsLoggedIn(true);
           sessionStorage.setItem('prok_admin_logged_in', 'true');
+          setShowLoginModal(false);
+          setLoginId('');
+          setLoginPw('');
         } else {
           alert('아이디 또는 비밀번호가 틀렸습니다.');
         }
       };
 
-      if (!isLoggedIn) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl text-white flex items-center justify-center text-3xl mx-auto shadow-lg shadow-blue-200 mb-4">
-                  <i className="fa-solid fa-lock"></i>
-                </div>
-                <h1 className="text-2xl font-bold text-slate-800">총회 일정관리</h1>
-                <p className="text-slate-500 mt-2 text-sm">중앙 데이터 동기화 시스템</p>
-              </div>
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">아이디</label>
-                  <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium" placeholder="아이디 입력" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">비밀번호</label>
-                  <input type="password" value={loginPw} onChange={e => setLoginPw(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium" placeholder="비밀번호 입력" required />
-                </div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md mt-4">
-                  로그인
-                </button>
-              </form>
-            </div>
-          </div>
-        );
-      }
+      const handleLogout = () => {
+        setIsLoggedIn(false);
+        sessionStorage.removeItem('prok_admin_logged_in');
+        setViewMode('preview');
+      };
 
       return (
         <div className="min-h-screen flex flex-col">
@@ -355,22 +357,75 @@
                 </div>
               </div>
               <div className="flex items-center">
-                <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
-                  <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
-                    <i className="fa-solid fa-pen-nib mr-2"></i>작성/수정
+                {viewMode === 'preview' && (
+                  <div className="mr-4 relative hidden sm:block">
+                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input 
+                      type="text" 
+                      placeholder="부서, 일정 검색..." 
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="pl-9 pr-3 py-1.5 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-100 w-48 transition-all"
+                    />
+                  </div>
+                )}
+                {isLoggedIn && (
+                  <div className="bg-slate-100/80 p-1 rounded-xl flex border border-slate-200">
+                    <button onClick={() => setViewMode('edit')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'edit' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                      <i className="fa-solid fa-pen-nib mr-2"></i>작성/수정
+                    </button>
+                    <button onClick={() => setViewMode('preview')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'preview' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                      <i className="fa-regular fa-copy mr-2"></i>조회 모드
+                    </button>
+                  </div>
+                )}
+                {isLoggedIn && (
+                  <button disabled className="ml-3 px-4 py-1.5 bg-slate-100 text-slate-400 rounded-xl text-sm font-bold border border-slate-200 flex items-center cursor-not-allowed opacity-80" title="현재 기업 방화벽 우회 기능 개발 중으로 잠시 비활성화되었습니다.">
+                    <i className="fa-solid fa-gear mr-2"></i>다우오피스 동기화 (추후지원)
                   </button>
-                  <button onClick={() => setViewMode('preview')} className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'preview' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
-                    <i className="fa-regular fa-copy mr-2"></i>발행 및 복사
-                  </button>
-                </div>
-                <button onClick={() => setShowDaouSettings(true)} className="ml-3 px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-sm font-bold transition-all border border-indigo-100 shadow-sm flex items-center">
-                  <i className="fa-solid fa-gear mr-2"></i>다우오피스 동기화
+                )}
+                <button 
+                  onClick={() => isLoggedIn ? handleLogout() : setShowLoginModal(true)} 
+                  className={`ml-3 w-9 h-9 flex items-center justify-center rounded-xl transition-all shadow-sm ${isLoggedIn ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                  title={isLoggedIn ? '로그아웃' : '관리자 로그인'}
+                >
+                  <i className={`fa-solid ${isLoggedIn ? 'fa-unlock-keyhole' : 'fa-lock'}`}></i>
                 </button>
               </div>
             </div>
           </header>
 
           <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8">
+
+            {/* Login Modal */}
+            {showLoginModal && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 relative animate-fade-in">
+                  <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                    <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+                  <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-blue-600 rounded-2xl text-white flex items-center justify-center text-3xl mx-auto shadow-lg shadow-blue-200 mb-4">
+                      <i className="fa-solid fa-lock"></i>
+                    </div>
+                    <h1 className="text-2xl font-bold text-slate-800">관리자 로그인</h1>
+                  </div>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">아이디</label>
+                      <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium" placeholder="아이디 입력" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">비밀번호</label>
+                      <input type="password" value={loginPw} onChange={e => setLoginPw(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium" placeholder="비밀번호 입력" required />
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md mt-4">
+                      로그인
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
 
             {/* DaouOffice Settings Modal */}
             {showDaouSettings && (
@@ -408,6 +463,17 @@
                       }} className="w-full py-2.5 mb-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">설정 저장</button>
 
                       <div className="flex gap-2">
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => moveTable(tables.findIndex(t => t.id === table.id), 'up')} className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm flex items-center justify-center transition-colors px-0 py-0" title="올리기">
+                            <i className="fa-solid fa-arrow-up text-xs"></i>
+                          </button>
+                          <button onClick={() => moveTable(tables.findIndex(t => t.id === table.id), 'down')} className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm flex items-center justify-center transition-colors px-0 py-0 mr-2" title="내리기">
+                            <i className="fa-solid fa-arrow-down text-xs"></i>
+                          </button>
+                          <button onClick={() => deleteTable(table.id)} className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-100 shadow-sm flex items-center justify-center transition-colors">
+                            <i className="fa-solid fa-trash-can text-sm"></i>
+                          </button>
+                        </div>
                         <button onClick={fetchFromDaou} disabled={isSyncing} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
                           {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-download"></i>}
                           가져오기
@@ -489,6 +555,7 @@
                                       <button onClick={() => moveRow(table.id, i, 'up')} disabled={i === 0} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-t flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-up text-[10px] text-slate-600"></i></button>
                                       <button onClick={() => moveRow(table.id, i, 'down')} disabled={i === table.rows.length - 1} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-b flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-down text-[10px] text-slate-600"></i></button>
                                     </div>
+                                    <button onClick={() => duplicateRow(table.id, i)} className="w-7 h-7 rounded text-indigo-500 hover:bg-indigo-100 flex items-center justify-center ml-1 transition-colors" title="이 일정 밑으로 똑같이 복사하기"><i className="fa-regular fa-copy text-sm"></i></button>
                                     <button onClick={() => deleteRow(table.id, row.id)} className="w-7 h-7 rounded text-rose-400 hover:bg-rose-100 flex items-center justify-center ml-1 transition-colors"><i className="fa-solid fa-xmark text-sm"></i></button>
                                   </div>
                                 </td>
@@ -566,27 +633,38 @@
                     {/* 👇 THIS IS THE COPIED INLINE STYLED HTML 👇 */}
                     <div style={{ fontFamily: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif", width: "100%", maxWidth: "900px", margin: "0 auto", color: "#111827", lineHeight: "1.4" }}>
                       
-                      {tables.map(table => (
-                        <div key={table.id} style={{ marginBottom: "50px" }}>
-                          
-                          <h3 style={{ fontSize: "17px", fontWeight: "bold", color: "#1e3a8a", paddingBottom: "10px", marginBottom: "12px", borderBottom: "2px solid #1e3a8a", display: "flex", alignItems: "center" }}>
-                            <span style={{ display: "inline-block", width: "5px", height: "16px", backgroundColor: "#1e3a8a", marginRight: "10px", verticalAlign: "middle" }}></span>
-                            {table.title}
-                          </h3>
+                      {tables.map(table => {
+                        const lowSearch = searchQuery.toLowerCase();
+                        const filteredRows = table.rows.filter(r => 
+                          !searchQuery || 
+                          (r.title && r.title.toLowerCase().includes(lowSearch)) || 
+                          (r.dept && r.dept.toLowerCase().includes(lowSearch)) || 
+                          (r.date && r.date.toLowerCase().includes(lowSearch))
+                        );
 
-                          <table border="0" cellPadding="0" cellSpacing="0" style={{ width: "100%", borderCollapse: "collapse", textAlign: "center", fontSize: "14px", backgroundColor: "#ffffff" }}>
-                            <thead>
-                              <tr>
-                                <th style={{ width: "16%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>날짜</th>
-                                <th style={{ width: "24%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>시간</th>
-                                <th style={{ width: "42%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>제 목</th>
-                                <th style={{ width: "18%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1" }}>담 당</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {table.rows.map((row, i) => {
-                                const hasDate = row.date && row.date.trim() !== '';
-                                const isLast = i === table.rows.length - 1;
+                        if (searchQuery && filteredRows.length === 0) return null;
+
+                        return (
+                          <div key={table.id} style={{ marginBottom: "50px" }}>
+                            
+                            <h3 style={{ fontSize: "17px", fontWeight: "bold", color: "#1e3a8a", paddingBottom: "10px", marginBottom: "12px", borderBottom: "2px solid #1e3a8a", display: "flex", alignItems: "center" }}>
+                              <span style={{ display: "inline-block", width: "5px", height: "16px", backgroundColor: "#1e3a8a", marginRight: "10px", verticalAlign: "middle" }}></span>
+                              {table.title}
+                            </h3>
+
+                            <table border="0" cellPadding="0" cellSpacing="0" style={{ width: "100%", borderCollapse: "collapse", textAlign: "center", fontSize: "14px", backgroundColor: "#ffffff" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ width: "16%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>날짜</th>
+                                  <th style={{ width: "24%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>시간</th>
+                                  <th style={{ width: "42%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>제 목</th>
+                                  <th style={{ width: "18%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1" }}>담 당</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredRows.map((row, i) => {
+                                  const hasDate = row.date && row.date.trim() !== '';
+                                  const isLast = i === filteredRows.length - 1;
                                 const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
                                 const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
                                 return (
@@ -619,7 +697,7 @@
                           </table>
 
                         </div>
-                      ))}
+                      )})}
                       
                       <div style={{ marginTop: "15px", fontSize: "12px", color: "#9ca3af", textAlign: "right" }}>
                         ※ 단, 상기 일정은 사정에 따라 변경될 수 있습니다.

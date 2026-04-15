@@ -13,7 +13,7 @@ for /f "tokens=1-2 delims=: " %%a in ('time /t') do set T=%%a:%%b
 set MSG=웹 업데이트 %D% %T%
 
 :: 1단계: Git 커밋
-echo [1/2] Git 커밋 중...
+echo [1/3] Git 커밋 중...
 git add -A
 git commit -m "%MSG%"
 if errorlevel 1 (
@@ -24,7 +24,7 @@ if errorlevel 1 (
 
 :: 2단계: Git Push
 echo.
-echo [1.5/2] Git Push 중...
+echo [2/3] Git Push 중...
 git push
 if errorlevel 1 (
     echo     ✖ Push 실패. 네트워크를 확인하세요.
@@ -32,12 +32,12 @@ if errorlevel 1 (
     echo     ✔ Push 완료
 )
 
-:: 3단계: Firebase 배포
+:: 3단계: Vercel 배포
 echo.
-echo [2/2] Firebase 배포 중...
-call firebase deploy --only hosting
+echo [3/3] Vercel 배포 중...
+call npx vercel --prod --yes
 if errorlevel 1 (
-    echo     ✖ 배포 실패. firebase login 상태를 확인하세요.
+    echo     ✖ 배포 실패. vercel login 상태를 확인하세요.
 ) else (
     echo     ✔ 배포 완료!
 )
@@ -45,5 +45,6 @@ if errorlevel 1 (
 echo.
 echo ══════════════════════════════════════
 echo   모든 작업 완료!
+echo   일정관리: https://prok-schedule.vercel.app
 echo ══════════════════════════════════════
 pause

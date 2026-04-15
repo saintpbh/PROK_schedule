@@ -1,21 +1,5 @@
 {
   "database": {
     "rules": "database.rules.json"
-  },
-  "hosting": {
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**",
-      "*.ps1",
-      "*.bat",
-      "*.mjs",
-      "*.txt",
-      "*.CSV",
-      "package*.json",
-      "crawl_*",
-      "csv_schedule_data.json"
-    ]
   }
 }

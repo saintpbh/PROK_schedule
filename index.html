@@ -111,25 +111,70 @@
       }
     ];
 
+    // ─── Archive Management State ────────────────────────────────────────────
+    const STORAGE_KEY = 'prok_archive_custom';
+
     const ArchiveView = () => {
       const [searchQuery, setSearchQuery] = useState('');
       const [year, setYear] = useState('all');
+      const [category, setCategory] = useState('all'); // 'all' | '총회장 동정' | '총무 동정'
       const [activePost, setActivePost] = useState(null);
       const [data, setData] = useState([]);
 
+      // Admin state
+      const [adminMode, setAdminMode] = useState(false);
+      const [showAddForm, setShowAddForm] = useState(false);
+      const [editingPost, setEditingPost] = useState(null); // post being edited
+      const [formData, setFormData] = useState({ title: '', date: '', dept: '총회장 동정', author: '', url: '', content: '' });
+
+      // Load base + custom overrides
       useEffect(() => {
-        if (window.HISTORY_DATA) {
-          setData(window.HISTORY_DATA);
+        const base = window.HISTORY_DATA ? [...window.HISTORY_DATA] : [];
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+          const customAdded = saved.added || [];
+          const customDeleted = new Set(saved.deleted || []);
+          const customEdited = saved.edited || {};
+          const merged = base
+            .filter(item => !customDeleted.has(item.id))
+            .map(item => customEdited[item.id] ? { ...item, ...customEdited[item.id] } : item);
+          setData([...customAdded, ...merged]);
+        } catch {
+          setData(base);
         }
       }, []);
+
+      const persistCustom = (newData) => {
+        // Compare against base to extract add/delete/edit sets
+        const base = window.HISTORY_DATA ? [...window.HISTORY_DATA] : [];
+        const baseIds = new Set(base.map(i => i.id));
+        const added = newData.filter(i => !baseIds.has(i.id));
+        const currentIds = new Set(newData.map(i => i.id));
+        const deleted = base.filter(i => !currentIds.has(i.id)).map(i => i.id);
+        const edited = {};
+        newData.forEach(item => {
+          if (baseIds.has(item.id)) {
+            const orig = base.find(b => b.id === item.id);
+            const diff = {};
+            let hasDiff = false;
+            ['title','date','dept','author','url','content'].forEach(k => {
+              if (item[k] !== orig[k]) { diff[k] = item[k]; hasDiff = true; }
+            });
+            if (hasDiff) edited[item.id] = diff;
+          }
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ added, deleted, edited }));
+        setData(newData);
+      };
 
       const availableYears = [...new Set(data.map(item => item.date.substring(0, 4)))].sort((a,b) => b.localeCompare(a));
       
       const filteredData = data.filter(item => {
         const matchYear = year === 'all' || item.date.startsWith(year);
-        const matchSearch = item.title.includes(searchQuery) || item.dept.includes(searchQuery);
-        return matchYear && matchSearch;
-      });
+        const matchSearch = item.title.includes(searchQuery) || item.dept.includes(searchQuery) || item.author?.includes(searchQuery);
+        const matchCat = category === 'all' || item.dept === category;
+        return matchYear && matchSearch && matchCat;
+      }).sort((a, b) => b.date.localeCompare(a.date));
 
       const mockHistoricalEvents = [
         { id: 1, year: '1953', title: '한국기독교장로회 제38회 총회 창립', desc: '호헌총회로 모여 새 역사를 시작하다.', tag: '창립' },
@@ -138,11 +183,94 @@
         { id: 4, year: '2015', title: '제100회 총회', desc: '새로운 100년을 향한 다짐', tag: '총회' },
       ];
 
-      // To prevent layout shifting when modal opens, you can toggle body overflow.
       useEffect(() => {
-        if (activePost) document.body.style.overflow = 'hidden';
+        if (activePost || showAddForm || editingPost) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
-      }, [activePost]);
+      }, [activePost, showAddForm, editingPost]);
+
+      // ── CRUD handlers ──────────────────────────────────────────────────────
+      const handleDelete = (id, e) => {
+        e.stopPropagation();
+        if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+        persistCustom(data.filter(i => i.id !== id));
+      };
+
+      const handleEditOpen = (post, e) => {
+        e.stopPropagation();
+        setEditingPost(post);
+        setFormData({ title: post.title, date: post.date, dept: post.dept, author: post.author || '', url: post.url || '', content: post.content || '' });
+      };
+
+      const handleEditSave = () => {
+        if (!formData.title || !formData.date) return alert('제목과 날짜는 필수입니다.');
+        persistCustom(data.map(i => i.id === editingPost.id ? { ...i, ...formData } : i));
+        setEditingPost(null);
+      };
+
+      const handleAddSave = () => {
+        if (!formData.title || !formData.date) return alert('제목과 날짜는 필수입니다.');
+        const newId = `custom_${Date.now()}`;
+        persistCustom([{ id: newId, board_id: 'custom', ...formData }, ...data]);
+        setShowAddForm(false);
+        setFormData({ title: '', date: '', dept: '총회장 동정', author: '', url: '', content: '' });
+      };
+
+      const openAddForm = () => {
+        setFormData({ title: '', date: new Date().toISOString().slice(0,10), dept: '총회장 동정', author: '', url: '', content: '' });
+        setShowAddForm(true);
+      };
+
+      // ── Category badge color ───────────────────────────────────────────────
+      const deptColor = (dept) => {
+        if (dept === '총무 동정') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+        if (dept === '총회장 동정' || dept === '총회문서') return 'bg-blue-50 text-blue-700 border border-blue-200';
+        return 'bg-[#f1f4f6] text-[#444650]';
+      };
+
+      // ── Shared form fields ─────────────────────────────────────────────────
+      const FormFields = () => (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">날짜 *</label>
+              <input type="date" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400"
+                value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">카테고리 *</label>
+              <select className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400"
+                value={formData.dept} onChange={e => setFormData({...formData, dept: e.target.value})}>
+                <option value="총회장 동정">총회장 동정</option>
+                <option value="총무 동정">총무 동정</option>
+                <option value="총회행사">총회행사</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">제목 *</label>
+            <input type="text" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400"
+              placeholder="행사 또는 동정 제목" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">작성자</label>
+              <input type="text" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400"
+                placeholder="홍길동" value={formData.author} onChange={e => setFormData({...formData, author: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">원본 URL</label>
+              <input type="text" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400"
+                placeholder="https://..." value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">내용 (HTML 가능)</label>
+            <textarea rows={5} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400 resize-none"
+              placeholder="행사 내용을 입력하세요..." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} />
+          </div>
+        </div>
+      );
 
       return (
         <div className="min-h-screen bg-[#f7fafc] font-sans pb-20 fade-in">
@@ -151,11 +279,23 @@
             <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-400 via-transparent to-transparent"></div>
             
             <div className="max-w-5xl mx-auto relative z-10">
-              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>총회 역사 아카이브</h1>
-              <p className="text-blue-200 text-lg md:text-xl font-light mb-10 opacity-90 leading-relaxed max-w-2xl">
-                지나온 발자취를 돌아보고 내일을 준비합니다.<br/>
-                과거의 중요한 회의, 선언, 그리고 일정들을 검색해보세요.
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>총회 역사 아카이브</h1>
+                  <p className="text-blue-200 text-lg md:text-xl font-light mb-10 opacity-90 leading-relaxed max-w-2xl">
+                    지나온 발자취를 돌아보고 내일을 준비합니다.<br/>
+                    과거의 중요한 회의, 선언, 그리고 일정들을 검색해보세요.
+                  </p>
+                </div>
+                {/* Admin Toggle */}
+                <button
+                  onClick={() => setAdminMode(!adminMode)}
+                  className={`mt-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow ${adminMode ? 'bg-red-500 text-white' : 'bg-white/15 text-white border border-white/30 hover:bg-white/25'}`}
+                >
+                  <i className={`fa-solid fa-${adminMode ? 'lock-open' : 'gear'} mr-1.5`}></i>
+                  {adminMode ? '관리 종료' : '관리 모드'}
+                </button>
+              </div>
 
               {/* Search Panel (Glassmorphism) */}
               <div className="bg-white/10 backdrop-blur-md border border-white/20 p-2 md:p-3 rounded-2xl flex flex-col md:flex-row gap-3 shadow-2xl">
@@ -202,12 +342,45 @@
 
             {/* Timeline List */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-20">
-              <div className="flex items-center justify-between mb-8 pb-6 border-b border-slate-100">
-                <h2 className="text-2xl font-bold text-[#001237]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
-                  {year === 'all' ? '전체 기록' : `${year}년 기록`}
-                </h2>
-                <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-inner">
-                  {filteredData.length} 건
+              {/* Header row: title + count + category tabs */}
+              <div className="mb-8 pb-6 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-2xl font-bold text-[#001237]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+                    {year === 'all' ? '전체 기록' : `${year}년 기록`}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-inner">
+                      {filteredData.length} 건
+                    </div>
+                    {adminMode && (
+                      <button onClick={openAddForm}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold transition-colors shadow">
+                        <i className="fa-solid fa-plus mr-1.5"></i>새 기록 추가
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Category Tabs */}
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { key: 'all', label: '전체' },
+                    { key: '총회장 동정', label: '총회장 동정' },
+                    { key: '총무 동정', label: '총무 동정' },
+                  ].map(tab => (
+                    <button key={tab.key}
+                      onClick={() => setCategory(tab.key)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${
+                        category === tab.key
+                          ? 'bg-[#001237] text-white border-[#001237] shadow'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                      }`}>
+                      {tab.label}
+                      <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${category === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        {tab.key === 'all' ? data.length : data.filter(d => d.dept === tab.key).length}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -222,19 +395,31 @@
                     onClick={() => setActivePost(row)}
                     className="relative pl-10 md:pl-12 py-5 group hover:bg-slate-50 transition-colors -mx-4 px-4 rounded-xl cursor-pointer"
                   >
-                    <div className="absolute left-[8px] md:left-[8px] top-7 w-2 h-2 rounded-full bg-[#c5c6d2] group-hover:bg-[#001237] transition-colors ring-4 ring-white"></div>
-                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8">
+                    <div className={`absolute left-[7px] md:left-[7px] top-7 w-3 h-3 rounded-full ring-4 ring-white transition-colors ${row.dept === '총무 동정' ? 'bg-emerald-400 group-hover:bg-emerald-600' : 'bg-blue-300 group-hover:bg-[#001237]'}`}></div>
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
                       <div className="shrink-0 w-24 text-sm font-bold text-[#506071] font-mono tracking-tighter">
                         {row.date.replace(/-/g, '.')}
                       </div>
-                      <div className="shrink-0 w-36">
-                        <span className="inline-block bg-[#f1f4f6] text-[#444650] text-xs font-bold px-2.5 py-1 rounded-md max-w-full truncate">
+                      <div className="shrink-0">
+                        <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-md ${deptColor(row.dept)}`}>
                           {row.dept}
                         </span>
                       </div>
                       <div className="flex-1 text-[15px] font-medium text-[#181c1e] leading-snug group-hover:text-blue-700 transition-colors">
                         {row.title}
                       </div>
+                      {adminMode && (
+                        <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                          <button onClick={e => handleEditOpen(row, e)}
+                            className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center text-xs transition-colors">
+                            <i className="fa-solid fa-pen"></i>
+                          </button>
+                          <button onClick={e => handleDelete(row.id, e)}
+                            className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 flex items-center justify-center text-xs transition-colors">
+                            <i className="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -245,39 +430,86 @@
           {/* Post Detail Modal */}
           {activePost && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 fade-in">
-              {/* Blur Backdrop */}
               <div 
                 className="absolute inset-0 bg-[#001237]/60 backdrop-blur-md"
                 onClick={() => setActivePost(null)}
               ></div>
-              
-              {/* Modal Content */}
               <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up ring-1 ring-slate-200">
-                {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-[#f8fafc]">
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-blue-600 mb-1 tracking-widest">{activePost.dept} | {activePost.date}</span>
+                    <span className={`text-xs font-bold mb-1 tracking-widest ${activePost.dept === '총무 동정' ? 'text-emerald-600' : 'text-blue-600'}`}>{activePost.dept} | {activePost.date}</span>
                     <h2 className="text-lg md:text-xl font-extrabold text-slate-800 leading-tight pr-4">{activePost.title}</h2>
                   </div>
-                  <button 
-                    onClick={() => setActivePost(null)}
-                    className="w-10 h-10 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-red-500 transition-colors shadow-sm"
-                  >
-                    <i className="fa-solid fa-xmark text-lg"></i>
-                  </button>
+                  <div className="flex gap-2 items-center">
+                    {adminMode && (
+                      <button onClick={e => { setActivePost(null); handleEditOpen(activePost, e); }}
+                        className="w-9 h-9 rounded-full bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center shadow-sm">
+                        <i className="fa-solid fa-pen text-sm"></i>
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setActivePost(null)}
+                      className="w-10 h-10 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-red-500 transition-colors shadow-sm"
+                    >
+                      <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                  </div>
                 </div>
-                
-                {/* Body (Detail Content from Crawler) */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar relative">
                   <div 
                     className="prose prose-blue max-w-none text-[#181c1e] md:text-lg leading-loose [&_img]:max-w-full [&_img]:mx-auto [&_img]:rounded-xl [&_img]:shadow-sm"
                     dangerouslySetInnerHTML={{ __html: activePost.content || '<p class="text-center text-slate-400 py-10">내용이 없거나 불러올 수 없습니다.</p>' }}
                   />
-                  
-                  <div className="mt-16 text-center pt-8 border-t border-slate-100">
-                    <a href={activePost.url} target="_blank" rel="noopener noreferrer" className="inline-block bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold px-6 py-3 rounded-xl transition-all shadow-sm hover:shadow-md">
-                      Prok.org 원본 링크 열기 <i className="fa-solid fa-arrow-up-right-from-square ml-2"></i>
-                    </a>
+                  {activePost.url && (
+                    <div className="mt-16 text-center pt-8 border-t border-slate-100">
+                      <a href={activePost.url} target="_blank" rel="noopener noreferrer" className="inline-block bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold px-6 py-3 rounded-xl transition-all shadow-sm hover:shadow-md">
+                        Prok.org 원본 링크 열기 <i className="fa-solid fa-arrow-up-right-from-square ml-2"></i>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Add New Record Modal ── */}
+          {showAddForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 fade-in">
+              <div className="absolute inset-0 bg-[#001237]/60 backdrop-blur-md" onClick={() => setShowAddForm(false)}></div>
+              <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-slate-200">
+                <div className="flex items-center justify-between px-6 py-4 bg-[#001237] text-white">
+                  <h2 className="text-lg font-extrabold"><i className="fa-solid fa-plus mr-2"></i>새 기록 추가</h2>
+                  <button onClick={() => setShowAddForm(false)} className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <div className="p-6 max-h-[75vh] overflow-y-auto">
+                  <FormFields />
+                  <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+                    <button onClick={() => setShowAddForm(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={handleAddSave} className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-colors shadow">저장</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Edit Record Modal ── */}
+          {editingPost && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 fade-in">
+              <div className="absolute inset-0 bg-[#001237]/60 backdrop-blur-md" onClick={() => setEditingPost(null)}></div>
+              <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-slate-200">
+                <div className="flex items-center justify-between px-6 py-4 bg-amber-500 text-white">
+                  <h2 className="text-lg font-extrabold"><i className="fa-solid fa-pen mr-2"></i>기록 편집</h2>
+                  <button onClick={() => setEditingPost(null)} className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <div className="p-6 max-h-[75vh] overflow-y-auto">
+                  <FormFields />
+                  <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+                    <button onClick={() => setEditingPost(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={handleEditSave} className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors shadow">저장</button>
                   </div>
                 </div>
               </div>

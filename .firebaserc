@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "prokworldmap"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

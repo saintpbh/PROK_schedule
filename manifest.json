@@ -1,7 +1,7 @@
 {
-  "name": "총회 일정관리",
-  "short_name": "일정관리",
-  "description": "한국기독교장로회총회 일정관리 시스템",
+  "name": "한국기독교장로회 총회 일정",
+  "short_name": "총회일정",
+  "description": "한국기독교장로회 총회 일정",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

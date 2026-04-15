@@ -1,4 +1,4 @@
-window.HISTORY_DATA = [
+﻿window.HISTORY_DATA = [
   {
     "id": "31414_0",
     "board_id": "31414",
@@ -1802,81 +1802,151 @@ window.HISTORY_DATA = [
   {
     "id": "1681_166852",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "\"안티오키아에 세워지는 기장 마을\"",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "\"?덊떚?ㅽ궎?꾩뿉 ?몄썙吏??湲곗옣 留덉쓣\"",
+    "author": "源李쎌＜",
     "date": "2025-04-23",
     "url": "https://www.prok.org/Board/Detail/1681/166852",
-    "content": "<div class=\"detail-content\"><p>안티오키아에 세워지는 기장 마을 관련 현장 방문 및 활동 기록입니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>?덊떚?ㅽ궎?꾩뿉 ?몄썙吏??湲곗옣 留덉쓣 愿???꾩옣 諛⑸Ц 諛??쒕룞 湲곕줉?낅땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICgxKS5qcGdkaW1vZGVfNDE5NzU1Nl9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICgyKS5qcGdkaW1vZGVfODc3Njg2NF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICgzKS5qcGdkaW1vZGVfMTcyMDQ5Nl9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICg0KS5qcGdkaW1vZGVfNTkxNjQ5OF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICg3KS5qcGdkaW1vZGVfNzg2MDEzMF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166852/WeqeuOuvuOq4sF0yMDI1MDQyM1nthLDtgqQg6rG07LaVICg4KS5qcGdkaW1vZGVfNjU3NDUxNl9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2504/764337996_88b3454f_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20250423_153449336_13.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166849",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "아카데미하우스 공사 현장",
-    "author": "김창주",
-    "date": "2025-04-01",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?꾩뭅?곕??섏슦??怨듭궗 ?꾩옣",
+    "author": "源李쎌＜",
+    "date": "2025-05-19",
     "url": "https://www.prok.org/Board/Detail/1681/166849",
-    "content": "<div class=\"detail-content\"><p>아카데미하우스 공사 현장 방문 기록입니다. 5월 19일 재방문하여 공사 진행 상황을 확인하였습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>?꾩뭅?곕??섏슦??怨듭궗 ?꾩옣 諛⑸Ц 湲곕줉?낅땲?? 5??19???щ갑臾명븯??怨듭궗 吏꾪뻾 ?곹솴???뺤씤?섏??듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166849/MjAyNTA0MDFfMTExNDQ3LmpwZ2RpbW9kZV81OTExNTc2X2VuYwcc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166849/MjAyNTA0MDFfMTExMzIzLmpwZ2RpbW9kZV8zODkwNDEyX2VuYwcc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166847",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "대한기독교서회 이사회와 NCCK 정책협의회",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "??쒓린?낃탳?쒗쉶 ?댁궗?뚯? NCCK ?뺤콉?묒쓽??,
+    "author": "源李쎌＜",
     "date": "2025-03-17",
     "url": "https://www.prok.org/Board/Detail/1681/166847",
-    "content": "<div class=\"detail-content\"><p>대한기독교서회 이사회 및 NCCK 정책협의회에 참석하였습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>??쒓린?낃탳?쒗쉶 ?댁궗??諛?NCCK ?뺤콉?묒쓽?뚯뿉 李몄꽍?섏??듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166847/MjAyNTAzMTdfMTY1MTIwLmpwZ2RpbW9kZV84NDUxMzg0X2VuYwcc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166845",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "서울북노회장님과 함께 미얀마장로교회 대표들을 만났습니다.",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?쒖슱遺곷끂?뚯옣?섍낵 ?④퍡 誘몄?留덉옣濡쒓탳????쒕뱾??留뚮궗?듬땲??",
+    "author": "源李쎌＜",
     "date": "2025-03-13",
     "url": "https://www.prok.org/Board/Detail/1681/166845",
-    "content": "<div class=\"detail-content\"><p>2021년 2월 1일 미얀마의 군부 쿠데타로 미얀마는 오늘까지 위기에 처해 있습니다. 서울북노회장님 일행과 함께 미얀마장로교회(PCM) 총무, 선교부총무, 청년국장과 만났습니다. 2003년 처음 미얀마 방문에 참여하였던 저에게는 의미있는 22년만의 방문이었습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>2021??2??1??誘몄?留덉쓽 援곕? 荑좊뜲?濡?誘몄?留덈뒗 ?ㅻ뒛源뚯? ?꾧린??泥섑빐 ?덉뒿?덈떎. ?쒖슱遺곷끂?뚯옣???쇳뻾怨??④퍡 誘몄?留덉옣濡쒓탳??PCM) 珥앸Т, ?좉탳遺珥앸Т, 泥?뀈援?옣怨?留뚮궗?듬땲?? 2003??泥섏쓬 誘몄?留?諛⑸Ц??李몄뿬?섏?????먭쾶???섎??덈뒗 22?꾨쭔??諛⑸Ц?댁뿀?듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166845/MTc0MTgyNDQwNDMwOS5qcGdkaW1vZGVfNTE4MzA3Ml9lbmMc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166842",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "마다가스카르 방문 보고 (2025년 2월 3일~ 13일)",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "留덈떎媛?ㅼ뭅瑜?諛⑸Ц 蹂닿퀬 (2025??2??3?? 13??",
+    "author": "源李쎌＜",
     "date": "2025-02-03",
     "url": "https://www.prok.org/Board/Detail/1681/166842",
-    "content": "<div class=\"detail-content\"><p>2025년 2월 3일(월)부터 13일까지 마다가스카르를 방문하여 현지 교회와의 협력 선교 활동을 진행하였습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>2025??2??3????遺??13?쇨퉴吏 留덈떎媛?ㅼ뭅瑜대? 諛⑸Ц?섏뿬 ?꾩? 援먰쉶????묐젰 ?좉탳 ?쒕룞??吏꾪뻾?섏??듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166842/MTczOTE2NDc4OTg2OC5qcGdkaW1vZGVfNDM3Mjc1OF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166842/MTczOTM1NDgzMDgxNC5qcGdkaW1vZGVfOTUzMzkyOV9lbmMc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166838",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "마다가스카르어-영어-한글 신약성서 출판, 제작, 기증 감사예배",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "留덈떎媛?ㅼ뭅瑜댁뼱-?곸뼱-?쒓? ?좎빟?깆꽌 異쒗뙋, ?쒖옉, 湲곗쬆 媛먯궗?덈같",
+    "author": "源李쎌＜",
     "date": "2025-01-22",
     "url": "https://www.prok.org/Board/Detail/1681/166838",
-    "content": "<div class=\"detail-content\"><p>마다가스카르어-영어-한글 신약성서의 출판, 제작, 기증 감사예배가 진행되었습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>留덈떎媛?ㅼ뭅瑜댁뼱-?곸뼱-?쒓? ?좎빟?깆꽌??異쒗뙋, ?쒖옉, 湲곗쬆 媛먯궗?덈같媛 吏꾪뻾?섏뿀?듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166838/MTczNzUyNTM2NjQ0NS5qcGdkaW1vZGVfNTM1MDkzMF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166838/MTczNzUzMDkwOTg2Mi5qcGdkaW1vZGVfNTc3MzczM19lbmMc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166836",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "김호식 목사님 임종, 입관, 장례예배",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "源?몄떇 紐⑹궗???꾩쥌, ?낃?, ?λ??덈같",
+    "author": "源李쎌＜",
     "date": "2024-12-18",
     "url": "https://www.prok.org/Board/Detail/1681/166836",
-    "content": "<div class=\"detail-content\"><p>우리 교단과 한국 교회의 큰 어른이신 김호식 목사께서 하나님의 부르심을 받으셨습니다. 지난 18일(수) 아침식사까지 잘 마치시고, 예정대로 투석을 받으려고 출발하며 차에 오르신 후, 사모님 곁에서 편안하게 하나님의 부르심을 받으셨습니다. 연세대학 세브란스 장례식장과 예닮교회에서 엄숙히 천국으로 보내드렸습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>?곕━ 援먮떒怨??쒓뎅 援먰쉶?????대Ⅸ?댁떊 源?몄떇 紐⑹궗猿섏꽌 ?섎굹?섏쓽 遺瑜댁떖??諛쏆쑝?⑥뒿?덈떎. 吏??18???? ?꾩묠?앹궗源뚯? ??留덉튂?쒓퀬, ?덉젙?濡??ъ꽍??諛쏆쑝?ㅺ퀬 異쒕컻?섎ŉ 李⑥뿉 ?ㅻⅤ???? ?щえ??怨곸뿉???몄븞?섍쾶 ?섎굹?섏쓽 遺瑜댁떖??諛쏆쑝?⑥뒿?덈떎. ?곗꽭????몃툕????λ??앹옣怨??덈떘援먰쉶?먯꽌 ?꾩닕??泥쒓뎅?쇰줈 蹂대궡?쒕졇?듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166836/MjAyNDEyMThfMjMyODI5LmpwZ2RpbW9kZV8yMTU0MTA5X2VuYwcc.jpg\" style=\"max-width:100%\" /></p></div>"
   },
   {
     "id": "1681_166835",
     "board_id": "1681",
-    "dept": "총무 동정",
-    "title": "한국기독교장로회 비상시국기도회",
-    "author": "김창주",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?쒓뎅湲곕룆援먯옣濡쒗쉶 鍮꾩긽?쒓뎅湲곕룄??,
+    "author": "源李쎌＜",
     "date": "2024-12-12",
     "url": "https://www.prok.org/Board/Detail/1681/166835",
-    "content": "<div class=\"detail-content\"><p>지난 12월 3일, 윤석열 대통령의 비상계엄선포로 시작된 온 국민의 불안과 분노가 극에 달했습니다. 이에 우리 교단은 12월 12일(목) 오후 2시 국회 앞에서 긴급비상기도회를 개최하였습니다. 전국에서 많은 목사님과 성도님들이 참석하였고, 이 땅에 생명 정의 평화 통일을 위한 기장인들의 열망을 보았습니다.</p></div>"
+    "content": "<div class=\"detail-content\"><p>吏??12??3?? ?ㅼ꽍????듬졊??鍮꾩긽怨꾩뾼?좏룷濡??쒖옉????援????遺덉븞怨?遺꾨끂媛 洹뱀뿉 ?ы뻽?듬땲?? ?댁뿉 ?곕━ 援먮떒? 12??12??紐? ?ㅽ썑 2??援?쉶 ?욎뿉??湲닿툒鍮꾩긽湲곕룄?뚮? 媛쒖턀?섏??듬땲?? ?꾧뎅?먯꽌 留롮? 紐⑹궗?섍낵 ?깅룄?섎뱾??李몄꽍?섏?怨? ???낆뿉 ?앸챸 ?뺤쓽 ?됲솕 ?듭씪???꾪븳 湲곗옣?몃뱾???대쭩??蹂댁븯?듬땲??</p></div>"
+  },
+  {
+    "id": "1681_166831",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?쒓뎅洹몃━?ㅻ룄???쇱튂?쒕? \"?앸챸怨??됲솕??湲?" 李몄꽍",
+    "author": "源李쎌＜",
+    "date": "2024-11-14",
+    "url": "https://www.prok.org/Board/Detail/1681/166831",
+    "content": "<div class=\"detail-content\"><p>?쒓뎅洹몃━?ㅻ룄???쇱튂?쒕? \"?앸챸怨??됲솕??湲?"??李몄꽍?섏??듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166831/MTczMjg2NTk2MTI3OC5qcGdkaW1vZGVfNzA0ODU5MF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166831/MTczMzkxMTYwNjIxNS5qcGdkaW1vZGVfNTg1MjAwOF9lbmMc.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166831/MTczMzE0NjIyNzYyOC5qcGdkaW1vZGVfNjc4NzIxM19lbmMc.jpg\" style=\"max-width:100%\" /></p></div>"
+  },
+  {
+    "id": "1681_166829",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?낆씪媛쒖떊援먮났?뚯＜?섏꽑援먯뿰?(EMS) ?ㅽ뻾?꾩썝?? 珥앺쉶 李몄꽍",
+    "author": "源李쎌＜",
+    "date": "2024-11-08",
+    "url": "https://www.prok.org/Board/Detail/1681/166829",
+    "content": "<div class=\"detail-content\"><p>?낆씪媛쒖떊援먮났?뚯＜?섏꽑援먯뿰?(EMS) ?ㅽ뻾?꾩썝??諛?珥앺쉶??李몄꽍?섏??듬땲??</p><p class=\"each-img\"><img src=\"http://data.dimode.co.kr/UserData/prok/files/1681/166829/MTczMTUzMTA5MDMwMi5qcGdkaW1vZGVfODIyNTQwM19lbmMc.jpg\" style=\"max-width:100%\" /></p></div>"
+  },
+  {
+    "id": "1681_166828",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?쒓뎅湲곕룆援먯옣濡쒗쉶 珥앺쉶珥앸Т ?멸퀎?몄닔",
+    "author": "源李쎌＜",
+    "date": "2024-11-06",
+    "url": "https://www.prok.org/Board/Detail/1681/166828",
+    "content": "<div class=\"detail-content\"><p>11??6???? ?ㅽ썑 5?? 珥앺쉶 蹂몃??먯꽌 源李쎌＜ 紐⑹궗? ?댄썕??紐⑹궗, ?뺤옱??紐⑹궗? 諛뺤쁺援??λ줈媛 ?④퍡 珥앺쉶 ?쇰컲?щТ, 珥앺쉶?ъ젙, 珥앺쉶?좎??щ떒, 移대굹?ㅼ뿰?⑷탳?뚯쑀吏?щ떒, 珥앺쉶?곌툑, ?쒓린?λ났吏?щ떒, 援먯쑁援??깆뿉 ????멸퀎?몄닔瑜?留덉낀?듬땲??</p></div>"
+  },
+  {
+    "id": "1681_166827",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "?쒓뎅湲곕룆援먯옣濡쒗쉶 珥앺쉶珥앸Т ?댄썕??紐⑹궗 痍⑥엫媛먯궗?덉떇",
+    "author": "源李쎌＜",
+    "date": "2024-10-25",
+    "url": "https://www.prok.org/Board/Detail/1681/166827",
+    "content": "<div class=\"detail-content\"><p>10??25??湲? ?ㅽ썑 2??珥앺쉶珥앸Т ?댄썕??紐⑹궗 痍⑥엫 媛먯궗?덉떇???대졇?듬땲?? 異뺥븯? 湲곗겏???섎늻???먮━??李몄꽍?섏??듬땲?? 珥앸Т吏곸씠 留됱쨷?⑥쓣 ?뚭린??李몄꽍?섏뿬 異뺥븯?쒕━怨?寃⑸젮?섏??듬땲?? 留롮? 遺꾨뱾???ㅼ뀛??異뺥븯?섎ŉ 湲곕룄?섎뒗 ?먮━??듬땲??</p></div>"
+  },
+  {
+    "id": "1681_166826",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "??쒓린?낃탳?쒗쉶 ?댁궗??,
+    "author": "源李쎌＜",
+    "date": "2024-10-18",
+    "url": "https://www.prok.org/Board/Detail/1681/166826",
+    "content": "<div class=\"detail-content\"><p>吏??4?붾???'??쒓린?낃탳?쒗쉶'??援먮떒 ?뚯넚 ?댁궗媛 ?섏뿀?듬땲?? ??쒓린?낃탳?쒗쉶 ?댁궗?뚭? ?덉뼱??泥섏쓬?쇰줈 李몄꽍?섏??듬땲?? ?대쾲 ?댁궗?뚮뒗 肄붾줈???댄썑 泥섏쓬?쇰줈 留먮젅?댁떆?꾩뿉??'?댁궗?ㅼ쓽 ?곗닔??? ?④퍡 ?대졇?듬땲??</p><p>??쒓린?낃탳?쒗쉶???곕━?섎씪???몄썙吏?理쒖큹??異쒗뙋?ъ씠怨? ?쒓뎅??援먰쉶?고빀湲곌????곗떎?댁뿀?듬땲?? 1890??6???몃뜑?곕뱶 ?좉탳?ъ쓽 吏묒뿉??泥?紐⑥엫??媛議뚮떎怨??⑸땲?? ?쒓뎅湲곕룆援먭탳?뚰삊?섑쉶(NCCK)???꾩떊??議곗꽑?덉닔援먯뿰?⑷났?섑쉶? 湲곕룆援먮갑??CBS), 議곗꽑二쇱씪?숆탳?고빀?? 湲곕룆援먯떊臾? ?꾧뎅?좏븰??숉삊?섑쉶???곗떎?댁뿀怨? 李ъ넚媛? ?깃꼍, ?좏븰?쒖쟻??異쒗뙋肉먮쭔 ?꾨땲?? ?쒖쁺, ?곹븳?ъ쟾, ?곗닔, 媛꾪샇?? ?꾩깮, ?고씗?섏쟾???섍낵?쒖쟻, 吏由??곸떇, ?대┛???쒖쟻??理쒖큹??異쒗뙋臾쇱씠?덈떎???ъ떎????먯뒿?덈떎.</p><p>??쒓린?낃탳?쒗쉶媛 ?덈줈???쒕????덈줈???ъ뾽怨??좉탳??留ㅼ쭊?섍린瑜?諛붾엻?덈떎.</p></div>"
+  },
+  {
+    "id": "1681_166824",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "珥앸Т ?댁엫?몄궗, ??109??珥앺쉶?먯꽌...",
+    "author": "源李쎌＜",
+    "date": "2024-09-25",
+    "url": "https://www.prok.org/Board/Detail/1681/166824",
+    "content": "<div class=\"detail-content\"><p>珥앺쉶 ?덊럹?댁???'?꾩쭅 珥앸Т?ㅼ쓽 諛???留덈젴??二쇱뀛??援먮떒???ш릿 ?꾩엫 珥앺쉶 珥앸Т?ㅼ쓽 ?쒕룞怨??숈젙??蹂닿퀬?쒕┫ ???덇쾶 ?섏뼱 媛먯궗?쒕┰?덈떎.</p><p>2024??9??24?쇰???26?쇨퉴吏 ??109??珥앺쉶瑜??섎굹?섏쓽 ???媛?대뜲 ??留덉낀?듬땲?? 珥앺쉶 ?섏㎏ ?? ?ㅼ쟾 泥??쒓컙, ?좉뎄?꾩썝 ?댁랬?꾩떇 以? ?밸퀎????먭쾶 ?쒓컙??二쇱뀛??紐⑤뱺 珥앸??섎뱾 ?욎뿉??'珥앸Т ?댁엫 ?몄궗'瑜??쒕┫ ???덉뿀?듬땲??</p><p>?곕━ 援먮떒 珥앺쉶瑜??ш린??珥앸Т(潁썲떃)濡쒖꽌 吏??4?? 李몄쑝濡??됰났?덉뒿?덈떎! 蹂대엺???쒓컙?댁뿀?듬땲?? 媛쒖씤?곸쑝濡쒕룄 珥앸Т吏곸? ?밴텒?댁뿀怨? 湲곗겏?댁뿀?쇰ŉ, 異뺣났???쒓컙?댁뿀?듬땲??</p><p class="each-img"><img src="http://data.dimode.co.kr/UserData/prok/files/1681/166824/MTcyNzIxNDE4NTc1OC5qcGdkaW1vZGVfMzI5MTQ5NF9lbmMc.jpg" style="max-width:100%" /></p></div>"
+  },
+  {
+    "id": "1681_166815",
+    "board_id": "1681",
+    "dept": "珥앸Т ?숈젙",
+    "title": "[珥앸Т ?숈젙 1660] ??109??珥앺쉶 以鍮꾨? 留덉낀?듬땲??,
+    "author": "源李쎌＜",
+    "date": "2024-09-24",
+    "url": "https://www.prok.org/Board/Detail/1681/166815",
+    "content": "<div class=\"detail-content\"><p>??109??珥앺쉶 以鍮꾨? 紐⑤몢 留덉낀?듬땲?? ?섎굹?섏쓽 ???媛?대뜲 珥앺쉶媛 ??吏꾪뻾?섍린瑜?湲곕룄?⑸땲??</p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_c2c12c2e_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111309468_03.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_98b9c8a7_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111309468_05.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_9300d150_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111309468.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_29fcdd01_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111309468_01.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_35a1b1b0_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111442023.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_e9ec3998_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111442023_01.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_81afff6f_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111442023_04.jpg\" style=\"max-width:100%\" /></p><p class=\"each-img\"><img src=\"https://data.dimode.co.kr/UserData/prok/data/geditor/2409/606518126_1eb77d3c_5BEABEB8EBAFB8EAB8B05DKakaoTalk_20240924_111442023_05.jpg\" style=\"max-width:100%\" /></p></div>"
   }
 ];

@@ -4,6 +4,22 @@
       "data": {
         ".read": true,
         ".write": "auth != null"
+      },
+      "data_backup_migrated": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "schedules": {
+        ".read": true,
+        ".write": "auth != null"
+      },
+      "settings": {
+        ".read": true,
+        ".write": "auth != null"
+      },
+      "archived": {
+        ".read": true,
+        ".write": "auth != null"
       }
     }
   }

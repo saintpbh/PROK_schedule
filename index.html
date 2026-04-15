@@ -49,16 +49,27 @@
       from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-up { animation: slideUp 0.3s ease-out; }
     /* Hide scrollbar for clean inputs */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    /* Undo toast animation */
+    @keyframes toastSlideIn {
+      from { transform: translateY(100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .undo-toast { animation: toastSlideIn 0.4s ease-out; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
     // Firebase Initialization
     const firebaseConfig = {
@@ -74,7 +85,73 @@
       firebase.initializeApp(firebaseConfig);
     }
     const db = firebase.database();
-    const scheduleRef = db.ref('shared_schedule_editor/data');
+
+    // Legacy ref (for migration)
+    const legacyScheduleRef = db.ref('shared_schedule_editor/data');
+    // Multi-year Firebase refs
+    const schedulesBaseRef = db.ref('shared_schedule_editor/schedules');
+    const settingsRef = db.ref('shared_schedule_editor/settings');
+    const archivedRef = db.ref('shared_schedule_editor/archived');
+
+    // ─── Helper: Generate 12-month template for a year ───────────────────
+    const generateYearTemplate = (year) => {
+      const months = [];
+      for (let m = 1; m <= 12; m++) {
+        months.push({
+          id: `${String(m).padStart(2,'0')}-${year}`,
+          title: `${year}년 ${m}월 일정`,
+          rows: [{ id: `init_${year}_${m}_${Math.random().toString(36).substr(2,5)}`, date: '', time: '', title: '', dept: '' }]
+        });
+      }
+      return months;
+    };
+
+    // ─── Helper: Fix broken prok.org image URLs ──────────────────────────
+    const fixImageSrc = (src) => {
+      if (!src) return src;
+      if (src.includes('prok.org') && !src.includes('archive.prok.org')) {
+        return src.replace(/(?:www\.)?prok\.org/g, 'archive.prok.org');
+      }
+      return src;
+    };
+
+    // ─── Helper: Attach image fallback to rendered HTML container ────────
+    const attachImageFallback = (containerEl) => {
+      if (!containerEl) return;
+      const imgs = containerEl.querySelectorAll('img');
+      imgs.forEach(img => {
+        if (img.dataset.fallbackApplied) return;
+        img.dataset.fallbackApplied = 'true';
+        const originalSrc = img.src;
+        img.onerror = () => {
+          const fixed = fixImageSrc(originalSrc);
+          if (fixed !== originalSrc && !img.dataset.fallbackTried) {
+            img.dataset.fallbackTried = 'true';
+            img.src = fixed;
+          } else {
+            img.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.style.cssText = 'padding:20px;text-align:center;color:#94a3b8;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;margin:8px 0;font-size:13px;';
+            placeholder.innerHTML = '<i class="fa-solid fa-image" style="font-size:24px;margin-bottom:8px;display:block;"></i>이미지를 불러올 수 없습니다';
+            img.parentNode.insertBefore(placeholder, img.nextSibling);
+          }
+        };
+        // Trigger check for already-broken images
+        if (img.complete && img.naturalWidth === 0) {
+          img.onerror();
+        }
+      });
+    };
+
+    // ─── Helper: Normalize Firebase data ─────────────────────────────────
+    const normalizeScheduleData = (data) => {
+      if (!data) return [];
+      const arr = Array.isArray(data) ? data : Object.values(data);
+      return arr.map(t => ({
+        ...t,
+        rows: Array.isArray(t.rows) ? t.rows : (t.rows ? Object.values(t.rows) : [])
+      }));
+    };
 
     const initialData = [
       {
@@ -116,17 +193,19 @@
     // ─── Archive Management State ────────────────────────────────────────────
     const STORAGE_KEY = 'prok_archive_custom';
 
-    const ArchiveView = () => {
+    const ArchiveView = ({ archivedSchedules = {} }) => {
       const [searchQuery, setSearchQuery] = useState('');
       const [year, setYear] = useState('all');
-      const [category, setCategory] = useState('all'); // 'all' | '총회장 동정' | '총무 동정'
+      const [category, setCategory] = useState('all');
       const [activePost, setActivePost] = useState(null);
       const [data, setData] = useState([]);
+      const [activeTab, setActiveTab] = useState('history'); // 'history' | 'pastSchedules'
+      const contentRef = useRef(null);
 
       // Admin state
       const [adminMode, setAdminMode] = useState(false);
       const [showAddForm, setShowAddForm] = useState(false);
-      const [editingPost, setEditingPost] = useState(null); // post being edited
+      const [editingPost, setEditingPost] = useState(null);
       const [formData, setFormData] = useState({ title: '', date: '', dept: '총회장 동정', author: '', url: '', content: '' });
 
       // Load base + custom overrides
@@ -146,8 +225,14 @@
         }
       }, []);
 
+      // Image fallback on post detail
+      useEffect(() => {
+        if (activePost && contentRef.current) {
+          attachImageFallback(contentRef.current);
+        }
+      }, [activePost]);
+
       const persistCustom = (newData) => {
-        // Compare against base to extract add/delete/edit sets
         const base = window.HISTORY_DATA ? [...window.HISTORY_DATA] : [];
         const baseIds = new Set(base.map(i => i.id));
         const added = newData.filter(i => !baseIds.has(i.id));
@@ -222,6 +307,22 @@
         setShowAddForm(true);
       };
 
+      // ── Bulk fix image links (admin tool) ──────────────────────────────────
+      const bulkFixImageLinks = () => {
+        let fixCount = 0;
+        const fixed = data.map(item => {
+          if (!item.content) return item;
+          const newContent = item.content.replace(/(?:www\.)?prok\.org/g, (match) => {
+            fixCount++;
+            return 'archive.prok.org';
+          });
+          if (newContent !== item.content) return { ...item, content: newContent };
+          return item;
+        });
+        persistCustom(fixed);
+        alert(`✅ ${fixCount}개의 이미지 링크가 archive.prok.org로 치환되었습니다.`);
+      };
+
       // ── Category badge color ───────────────────────────────────────────────
       const deptColor = (dept) => {
         if (dept === '총무 동정') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
@@ -273,6 +374,9 @@
           </div>
         </div>
       );
+
+      // ── Archived past schedules ────────────────────────────────────────────
+      const archivedYearsList = Object.keys(archivedSchedules).sort((a,b) => Number(b) - Number(a));
 
       return (
         <div className="min-h-screen bg-[#f7fafc] font-sans pb-20 fade-in">
@@ -330,116 +434,185 @@
           </div>
 
           <div className="max-w-5xl mx-auto px-4 -mt-8 relative z-20">
-            {/* Milestone Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-              {mockHistoricalEvents.map(event => (
-                <div key={event.id} className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 hover:-translate-y-1 transition-transform cursor-pointer group hover:shadow-xl hover:border-blue-100 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold bg-[#eef1f3] text-[#444650] px-2.5 py-1 rounded-md tracking-widest">{event.year}</span>
-                      <i className="fa-solid fa-arrow-up-right-from-square text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                    </div>
-                    <h3 className="font-bold text-[#181c1e] text-lg leading-tight mb-3 group-hover:text-blue-700 transition-colors" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>{event.title}</h3>
-                  </div>
-                  <p className="text-[#506071] text-sm leading-relaxed">{event.desc}</p>
-                </div>
-              ))}
+            {/* Tab Switch: 역사/과거연도일정 */}
+            <div className="flex gap-2 mb-6">
+              <button onClick={() => setActiveTab('history')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'history' ? 'bg-[#001237] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+                <i className="fa-solid fa-scroll mr-2"></i>역사 기록
+              </button>
+              <button onClick={() => setActiveTab('pastSchedules')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${activeTab === 'pastSchedules' ? 'bg-[#001237] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>
+                <i className="fa-solid fa-calendar-xmark mr-2"></i>과거 연도 일정
+                {archivedYearsList.length > 0 && (
+                  <span className="ml-2 bg-amber-400 text-amber-900 text-xs px-2 py-0.5 rounded-full font-bold">{archivedYearsList.length}</span>
+                )}
+              </button>
+              {adminMode && (
+                <button onClick={bulkFixImageLinks}
+                  className="ml-auto px-4 py-2 rounded-xl text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-all shadow-sm">
+                  <i className="fa-solid fa-link mr-1.5"></i>이미지 링크 일괄 치환
+                </button>
+              )}
             </div>
 
-            {/* Timeline List */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-20">
-              {/* Header row: title + count + category tabs */}
-              <div className="mb-8 pb-6 border-b border-slate-100">
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-2xl font-bold text-[#001237]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
-                    {year === 'all' ? '전체 기록' : `${year}년 기록`}
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-inner">
-                      {filteredData.length} 건
+            {activeTab === 'history' ? (
+              <>
+                {/* Milestone Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+                  {mockHistoricalEvents.map(event => (
+                    <div key={event.id} className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 hover:-translate-y-1 transition-transform cursor-pointer group hover:shadow-xl hover:border-blue-100 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="text-xs font-bold bg-[#eef1f3] text-[#444650] px-2.5 py-1 rounded-md tracking-widest">{event.year}</span>
+                          <i className="fa-solid fa-arrow-up-right-from-square text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                        </div>
+                        <h3 className="font-bold text-[#181c1e] text-lg leading-tight mb-3 group-hover:text-blue-700 transition-colors" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>{event.title}</h3>
+                      </div>
+                      <p className="text-[#506071] text-sm leading-relaxed">{event.desc}</p>
                     </div>
-                    {adminMode && (
-                      <button onClick={openAddForm}
-                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold transition-colors shadow">
-                        <i className="fa-solid fa-plus mr-1.5"></i>새 기록 추가
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category Tabs */}
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    { key: 'all', label: '전체' },
-                    { key: '총회장 동정', label: '총회장 동정' },
-                    { key: '총무 동정', label: '총무 동정' },
-                  ].map(tab => (
-                    <button key={tab.key}
-                      onClick={() => setCategory(tab.key)}
-                      className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${
-                        category === tab.key
-                          ? 'bg-[#001237] text-white border-[#001237] shadow'
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-                      }`}>
-                      {tab.label}
-                      <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${category === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        {tab.key === 'all' ? data.length : data.filter(d => d.dept === tab.key).length}
-                      </span>
-                    </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="flex flex-col relative before:content-[''] before:absolute before:left-[11px] md:before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
-                {filteredData.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 font-bold">
-                    검색 결과가 없습니다.
-                  </div>
-                ) : filteredData.map((row) => (
-                  <div 
-                    key={row.id} 
-                    onClick={() => setActivePost(row)}
-                    className="relative pl-10 md:pl-12 py-5 group hover:bg-slate-50 transition-colors -mx-4 px-4 rounded-xl cursor-pointer"
-                  >
-                    <div className={`absolute left-[7px] md:left-[7px] top-7 w-3 h-3 rounded-full ring-4 ring-white transition-colors ${row.dept === '총무 동정' ? 'bg-emerald-400 group-hover:bg-emerald-600' : 'bg-blue-300 group-hover:bg-[#001237]'}`}></div>
-                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
-                      <div className="shrink-0 w-24 text-sm font-bold text-[#506071] font-mono tracking-tighter">
-                        {row.date.replace(/-/g, '.')}
-                      </div>
-                      <div className="shrink-0">
-                        <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-md ${deptColor(row.dept)}`}>
-                          {row.dept}
-                        </span>
-                      </div>
-                      <div className="flex-1 text-[15px] font-medium text-[#181c1e] leading-snug group-hover:text-blue-700 transition-colors">
-                        {row.title}
-                      </div>
-                      {adminMode && (
-                        <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
-                          <button onClick={e => handleEditOpen(row, e)}
-                            className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center text-xs transition-colors">
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-                          <button onClick={e => handleDelete(row.id, e)}
-                            className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 flex items-center justify-center text-xs transition-colors">
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
+                {/* Timeline List */}
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-20">
+                  <div className="mb-8 pb-6 border-b border-slate-100">
+                    <div className="flex items-center justify-between mb-5">
+                      <h2 className="text-2xl font-bold text-[#001237]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+                        {year === 'all' ? '전체 기록' : `${year}년 기록`}
+                      </h2>
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-inner">
+                          {filteredData.length} 건
                         </div>
-                      )}
+                        {adminMode && (
+                          <button onClick={openAddForm}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold transition-colors shadow">
+                            <i className="fa-solid fa-plus mr-1.5"></i>새 기록 추가
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Category Tabs */}
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { key: 'all', label: '전체' },
+                        { key: '총회장 동정', label: '총회장 동정' },
+                        { key: '총무 동정', label: '총무 동정' },
+                      ].map(tab => (
+                        <button key={tab.key}
+                          onClick={() => setCategory(tab.key)}
+                          className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${
+                            category === tab.key
+                              ? 'bg-[#001237] text-white border-[#001237] shadow'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                          }`}>
+                          {tab.label}
+                          <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${category === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                            {tab.key === 'all' ? data.length : data.filter(d => d.dept === tab.key).length}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ))}
+
+                  <div className="flex flex-col relative before:content-[''] before:absolute before:left-[11px] md:before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
+                    {filteredData.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 font-bold">검색 결과가 없습니다.</div>
+                    ) : filteredData.map((row) => (
+                      <div 
+                        key={row.id} 
+                        onClick={() => setActivePost(row)}
+                        className="relative pl-10 md:pl-12 py-5 group hover:bg-slate-50 transition-colors -mx-4 px-4 rounded-xl cursor-pointer"
+                      >
+                        <div className={`absolute left-[7px] md:left-[7px] top-7 w-3 h-3 rounded-full ring-4 ring-white transition-colors ${row.dept === '총무 동정' ? 'bg-emerald-400 group-hover:bg-emerald-600' : 'bg-blue-300 group-hover:bg-[#001237]'}`}></div>
+                        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+                          <div className="shrink-0 w-24 text-sm font-bold text-[#506071] font-mono tracking-tighter">
+                            {row.date.replace(/-/g, '.')}
+                          </div>
+                          <div className="shrink-0">
+                            <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-md ${deptColor(row.dept)}`}>
+                              {row.dept}
+                            </span>
+                          </div>
+                          <div className="flex-1 text-[15px] font-medium text-[#181c1e] leading-snug group-hover:text-blue-700 transition-colors">
+                            {row.title}
+                          </div>
+                          {adminMode && (
+                            <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                              <button onClick={e => handleEditOpen(row, e)}
+                                className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center text-xs transition-colors">
+                                <i className="fa-solid fa-pen"></i>
+                              </button>
+                              <button onClick={e => handleDelete(row.id, e)}
+                                className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 flex items-center justify-center text-xs transition-colors">
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* ── Past Year Schedules Tab ── */
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-10 mb-20">
+                <h2 className="text-2xl font-bold text-[#001237] mb-6" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+                  <i className="fa-solid fa-archive mr-3 text-amber-500"></i>과거 연도 일정 아카이브
+                </h2>
+                {archivedYearsList.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400">
+                    <i className="fa-solid fa-box-open text-4xl mb-4 block"></i>
+                    <p className="font-bold text-lg">아카이빙된 일정이 없습니다.</p>
+                    <p className="text-sm mt-2">해가 바뀌면 이전 연도 일정이 자동으로 이곳에 보관됩니다.</p>
+                  </div>
+                ) : archivedYearsList.map(yr => {
+                  const yearData = normalizeScheduleData(archivedSchedules[yr]);
+                  return (
+                    <details key={yr} className="mb-4 border border-slate-200 rounded-2xl overflow-hidden group">
+                      <summary className="bg-slate-50 px-6 py-4 cursor-pointer font-bold text-lg text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-between">
+                        <span><i className="fa-regular fa-calendar mr-3 text-blue-500"></i>{yr}년 일정</span>
+                        <span className="text-sm font-normal text-slate-400">{yearData.length}개 월</span>
+                      </summary>
+                      <div className="p-4 space-y-4">
+                        {yearData.map(table => (
+                          <div key={table.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                            <div className="bg-blue-50 px-4 py-2 font-bold text-sm text-blue-800">{table.title}</div>
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-slate-50 text-slate-500 text-xs">
+                                  <th className="px-3 py-2 text-left w-[15%]">날짜</th>
+                                  <th className="px-3 py-2 text-left w-[20%]">시간</th>
+                                  <th className="px-3 py-2 text-left w-[45%]">제목</th>
+                                  <th className="px-3 py-2 text-left w-[20%]">담당</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(table.rows || []).map((row, i) => (
+                                  <tr key={row.id || i} className="border-t border-slate-100 hover:bg-slate-50">
+                                    <td className="px-3 py-2 font-medium text-blue-800">{row.date}</td>
+                                    <td className="px-3 py-2 text-slate-500">{row.time}</td>
+                                    <td className="px-3 py-2 text-slate-800 font-medium">{row.title}</td>
+                                    <td className="px-3 py-2 text-slate-500">{row.dept}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Post Detail Modal */}
+          {/* Post Detail Modal (with image fallback) */}
           {activePost && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 fade-in">
-              <div 
-                className="absolute inset-0 bg-[#001237]/60 backdrop-blur-md"
-                onClick={() => setActivePost(null)}
-              ></div>
+              <div className="absolute inset-0 bg-[#001237]/60 backdrop-blur-md" onClick={() => setActivePost(null)}></div>
               <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up ring-1 ring-slate-200">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-[#f8fafc]">
                   <div className="flex flex-col">
@@ -463,6 +636,7 @@
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar relative">
                   <div 
+                    ref={contentRef}
                     className="prose prose-blue max-w-none text-[#181c1e] md:text-lg leading-loose [&_img]:max-w-full [&_img]:mx-auto [&_img]:rounded-xl [&_img]:shadow-sm"
                     dangerouslySetInnerHTML={{ __html: activePost.content || '<p class="text-center text-slate-400 py-10">내용이 없거나 불러올 수 없습니다.</p>' }}
                   />
@@ -525,6 +699,9 @@
       );
     };
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // ═══ Main App Component ══════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════
     function App() {
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [showLoginModal, setShowLoginModal] = useState(false);
@@ -535,40 +712,7 @@
       const [viewMode, setViewMode] = useState('preview');
       const [currentTime, setCurrentTime] = useState(new Date());
 
-      useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-      }, []);
-
-      useEffect(() => {
-        const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
-          if (user) {
-            setIsLoggedIn(true);
-            setViewMode('edit');
-          } else {
-            setIsLoggedIn(false);
-            setViewMode('preview');
-          }
-        });
-        return () => unsubscribe();
-      }, []);
-
       const [tables, setTables] = useState(initialData);
-
-      // Normalize: ensure every table has a rows array (Firebase RTDB drops empty arrays)
-      const safeTables = React.useMemo(() => {
-        if (!Array.isArray(tables)) return [];
-        return tables.map(t => ({ ...t, rows: Array.isArray(t.rows) ? t.rows : [] }));
-      }, [tables]);
-
-      const allTitles = React.useMemo(() => {
-        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.title)).filter(t => t && t.trim() !== '')));
-      }, [safeTables]);
-
-      const allDepts = React.useMemo(() => {
-        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
-      }, [safeTables]);
-
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
       const previewRef = useRef(null);
@@ -581,169 +725,304 @@
       const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('vercel_proxy') || 'https://prok-schedule.vercel.app/api/proxy');
       const [isSyncing, setIsSyncing] = useState(false);
 
+      // ── NEW: Multi-year state ──────────────────────────────────────────
+      const [availableYears, setAvailableYears] = useState([]);
+      const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+      const [displaySettings, setDisplaySettings] = useState({
+        display_year: 2026, display_start: '2026-01-01', display_end: '2026-12-31'
+      });
+      const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+      const [showNewYearModal, setShowNewYearModal] = useState(false);
+      const [newYearInput, setNewYearInput] = useState(new Date().getFullYear() + 1);
+      const [showCsvYearModal, setShowCsvYearModal] = useState(false);
+      const [csvTargetYear, setCsvTargetYear] = useState(new Date().getFullYear());
+      const [undoSnapshot, setUndoSnapshot] = useState(null);
+      const [showUndoToast, setShowUndoToast] = useState(false);
+      const undoTimerRef = useRef(null);
+      const [archivedSchedules, setArchivedSchedules] = useState({});
+      const [archiveNotice, setArchiveNotice] = useState(null);
+
+      // ── Timer ──────────────────────────────────────────────────────────
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      // ── Auth listener ──────────────────────────────────────────────────
+      useEffect(() => {
+        const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+          if (user) { setIsLoggedIn(true); setViewMode('edit'); }
+          else { setIsLoggedIn(false); setViewMode('preview'); }
+        });
+        return () => unsubscribe();
+      }, []);
+
+      // ── Normalize tables ───────────────────────────────────────────────
+      const safeTables = useMemo(() => {
+        if (!Array.isArray(tables)) return [];
+        return tables.map(t => ({ ...t, rows: Array.isArray(t.rows) ? t.rows : [] }));
+      }, [tables]);
+
+      const allTitles = useMemo(() => {
+        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.title)).filter(t => t && t.trim() !== '')));
+      }, [safeTables]);
+
+      const allDepts = useMemo(() => {
+        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
+      }, [safeTables]);
+
+      // ── DaouOffice functions (unchanged) ───────────────────────────────
       const fetchFromDaou = async () => {
         if (!daouUrl || !daouId || !daouPw) return alert('설정에서 주소, 아이디, 비밀번호를 입력해주세요.');
         setIsSyncing(true);
         try {
           const auth = btoa(`${daouId}:${daouPw}`);
           const targetEndpoint = daouUrl.endsWith('/') ? `${daouUrl}.well-known/caldav` : `${daouUrl}/.well-known/caldav`;
-          
-          // 프록시 URL이 있으면 경유, 비워두면(다이렉트 통신) 확장앱 모드로 동작
           const endpointToFetch = proxyUrl ? `${proxyUrl}?url=${encodeURIComponent(targetEndpoint)}` : targetEndpoint;
-
           const response = await fetch(endpointToFetch, {
             method: 'PROPFIND',
-            headers: {
-              'Authorization': `Basic ${auth}`,
-              'Depth': '0',
-              'Content-Type': 'application/xml; charset=utf-8'
-            },
+            headers: { 'Authorization': `Basic ${auth}`, 'Depth': '0', 'Content-Type': 'application/xml; charset=utf-8' },
             body: `<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>`
           });
-
           if (!response.ok) {
             if (response.status === 401) throw new Error("401 Unauthorized - 아이디나 비밀번호를 다시 확인해주세요.");
-            throw new Error(`서버 응답 오류: ${response.status} (Vercel 프록시가 정상 배포되었는지 확인해주세요)`);
+            throw new Error(`서버 응답 오류: ${response.status}`);
           }
-          alert('연동(인증)에 성공했습니다! (Vercel 프록시 우회 통과 확인. 상세 데이터 파싱은 추가 구현 중입니다)');
+          alert('연동(인증)에 성공했습니다!');
         } catch (e) {
           alert(`통신 오류가 발생했습니다.\n\n상세 에러: ${e.message}`);
-        } finally {
-          setIsSyncing(false);
-        }
+        } finally { setIsSyncing(false); }
       };
+      const exportToDaou = async () => { alert('내보내기 기능 준비 중입니다.'); };
 
-      const exportToDaou = async () => {
-        alert('내보내기 기능 준비 중입니다.');
-      };
+      // ═══════════════════════════════════════════════════════════════════
+      // ═══ MULTI-YEAR FIREBASE LOADING ══════════════════════════════════
+      // ═══════════════════════════════════════════════════════════════════
 
-      // Load from Firebase
+      // Effect 1: One-time setup — migration, settings, available years, archived, auto-archive
       useEffect(() => {
-        const onData = scheduleRef.on('value', (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            // Normalize: ensure every table entry has a rows array
-            const normalized = (Array.isArray(data) ? data : Object.values(data)).map(t => ({
-              ...t,
-              rows: Array.isArray(t.rows) ? t.rows : (t.rows ? Object.values(t.rows) : [])
-            }));
+        // Load display settings
+        const settingsHandler = settingsRef.on('value', snap => {
+          const s = snap.val();
+          if (s) setDisplaySettings(s);
+        });
 
-            // Auto-recover: if initialData months are missing or degraded, restore them
-            let needsRepair = false;
-            let repaired = [...normalized];
-            for (const initTable of initialData) {
-              const initMonth = initTable.title.match(/(\d{1,2})월/);
-              if (!initMonth) continue;
-              const monthNum = parseInt(initMonth[1]);
-              const fbIdx = repaired.findIndex(t => {
-                const m = t.title.match(/(\d{1,2})월/);
-                return m && parseInt(m[1]) === monthNum;
-              });
-              if (fbIdx === -1) {
-                // Month missing entirely — add it
-                repaired.push(initTable);
-                needsRepair = true;
-              } else if (repaired[fbIdx].rows.length < 3 && initTable.rows.length >= 3) {
-                // Month degraded (e.g. replaced by trivial CSV entry) — restore
-                repaired[fbIdx] = initTable;
-                needsRepair = true;
-              }
-            }
-            if (needsRepair) {
-              // Sort by month
-              repaired.sort((a, b) => {
-                const mA = a.title.match(/(\d{1,2})월/);
-                const mB = b.title.match(/(\d{1,2})월/);
-                if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
-                return 0;
-              });
-              scheduleRef.set(repaired);
-            }
-            setTables(needsRepair ? repaired : normalized);
-          } else {
-            // Initialize server with local data if empty
-            const saved = localStorage.getItem('prokScheduleEditor');
-            const localData = saved ? JSON.parse(saved) : initialData;
-            setTables(localData);
-            scheduleRef.set(localData);
+        // Load available years
+        const yearsHandler = schedulesBaseRef.on('value', snap => {
+          const data = snap.val();
+          if (data) {
+            const years = Object.keys(data).map(Number).sort((a,b) => a - b);
+            setAvailableYears(years);
           }
         });
 
-        return () => scheduleRef.off('value', onData);
+        // Load archived schedules
+        const archiveHandler = archivedRef.on('value', snap => {
+          setArchivedSchedules(snap.val() || {});
+        });
+
+        // Migration: only run when authenticated (requires write permission)
+        const runMigrationIfNeeded = () => {
+          const user = firebase.auth().currentUser;
+          if (!user) return; // Skip migration for non-authenticated users
+          schedulesBaseRef.once('value', snap => {
+            if (!snap.exists()) {
+              legacyScheduleRef.once('value', legacySnap => {
+                const legacyData = legacySnap.val();
+                if (legacyData) {
+                  const normalized = normalizeScheduleData(legacyData);
+                  schedulesBaseRef.child('2026').set(normalized);
+                  db.ref('shared_schedule_editor/data_backup_migrated').set(legacyData);
+                  settingsRef.set({ display_year: 2026, display_start: '2026-01-01', display_end: '2026-12-31' });
+                  console.log('[Migration] Legacy data migrated to schedules/2026');
+                } else {
+                  schedulesBaseRef.child('2026').set(initialData);
+                  settingsRef.set({ display_year: 2026, display_start: '2026-01-01', display_end: '2026-12-31' });
+                }
+              });
+            }
+          });
+        };
+        // Listen for auth state to trigger migration
+        const authUnsub = firebase.auth().onAuthStateChanged(user => {
+          if (user) runMigrationIfNeeded();
+        });
+
+        // Auto-archiving: if current year > display_year
+        const currentYear = new Date().getFullYear();
+        settingsRef.once('value', snap => {
+          const s = snap.val();
+          if (s && s.display_year && currentYear > s.display_year) {
+            const oldYear = s.display_year;
+            schedulesBaseRef.child(String(oldYear)).once('value', oldSnap => {
+              const oldData = oldSnap.val();
+              if (oldData) {
+                archivedRef.child(String(oldYear)).set(oldData);
+                settingsRef.update({ display_year: currentYear });
+                schedulesBaseRef.child(String(currentYear)).once('value', curSnap => {
+                  if (!curSnap.exists()) {
+                    schedulesBaseRef.child(String(currentYear)).set(generateYearTemplate(currentYear));
+                  }
+                });
+                setArchiveNotice(`📦 ${oldYear}년 일정이 자동으로 아카이빙되었습니다.`);
+                setTimeout(() => setArchiveNotice(null), 8000);
+              }
+            });
+          }
+        });
+
+        return () => {
+          settingsRef.off('value', settingsHandler);
+          schedulesBaseRef.off('value', yearsHandler);
+          archivedRef.off('value', archiveHandler);
+          authUnsub();
+        };
       }, []);
 
-      // Save to Firebase
-      const saveToDb = (newTables) => {
+      // Effect 2: Load selected year's data from Firebase (with legacy fallback)
+      useEffect(() => {
+        const yearRef = schedulesBaseRef.child(String(selectedYear));
+        const handler = yearRef.on('value', snap => {
+          const data = snap.val();
+          if (data) {
+            setTables(normalizeScheduleData(data));
+          } else {
+            // Fallback: if schedules/{year} doesn't exist, try legacy data path
+            legacyScheduleRef.once('value', legacySnap => {
+              const legacyData = legacySnap.val();
+              if (legacyData) {
+                setTables(normalizeScheduleData(legacyData));
+                console.log('[Fallback] Loaded from legacy data/ path');
+              } else {
+                setTables([]);
+              }
+            }).catch(() => setTables([]));
+          }
+        });
+        return () => yearRef.off('value', handler);
+      }, [selectedYear]);
+
+      // Effect 3: For non-logged-in users, show display_year
+      useEffect(() => {
+        if (!isLoggedIn && displaySettings.display_year) {
+          setSelectedYear(displaySettings.display_year);
+        }
+      }, [isLoggedIn, displaySettings.display_year]);
+
+      // ── Save to Firebase (year-aware) ──────────────────────────────────
+      const saveToDb = useCallback((newTables, year) => {
+        const targetYear = year || selectedYear;
         setTables(newTables);
-        scheduleRef.set(newTables);
+        schedulesBaseRef.child(String(targetYear)).set(newTables);
+      }, [selectedYear]);
+
+      // ── Create new year ────────────────────────────────────────────────
+      const createNewYear = (year) => {
+        if (availableYears.includes(year)) {
+          return alert(`${year}년 일정이 이미 존재합니다.`);
+        }
+        const template = generateYearTemplate(year);
+        schedulesBaseRef.child(String(year)).set(template);
+        setSelectedYear(year);
+        setShowNewYearModal(false);
+        alert(`✅ ${year}년 일정 (12개월 템플릿)이 생성되었습니다.`);
       };
 
-      // CSV 데이터 가져오기 (병합)
-      const importCsvData = () => {
+      // ── CSV Import (with year selection + undo) ────────────────────────
+      const triggerCsvImport = () => {
         const csvData = window.CSV_SCHEDULE_2026;
         if (!csvData || !Array.isArray(csvData)) {
           return alert('CSV 데이터가 로드되지 않았습니다.');
         }
-        if (!confirm(`CSV에서 ${csvData.length}개 월 일정을 가져옵니다. 기존 같은 월 일정은 CSV 데이터로 대체됩니다. 계속하시겠습니까?`)) return;
-
-        const existingById = {};
-        tables.forEach(t => { existingById[t.id] = t; });
-        
-        // CSV 데이터의 월 추출
-        const csvMonths = new Map(); // monthNum -> csvTable
-        csvData.forEach(t => {
-          const m = t.title.match(/(\d{1,2})월/);
-          if (m) csvMonths.set(parseInt(m[1]), t);
-        });
-
-        // 기존 데이터에서 CSV 월에 해당하는 것 교체 (단, 기존이 더 풍부하면 보호)
-        let merged = tables.map(t => {
-          const m = t.title.match(/(\d{1,2})월/);
-          if (!m) return t;
-          const monthNum = parseInt(m[1]);
-          const csvVersion = csvMonths.get(monthNum);
-          if (csvVersion) {
-            // CSV 버전이 있으면: 기존이 더 풍부한 경우 보호
-            if ((t.rows || []).length > (csvVersion.rows || []).length) {
-              csvMonths.delete(monthNum); // 사용됨 표시
-              return t; // 기존 유지
-            }
-            csvMonths.delete(monthNum);
-            return csvVersion;
-          }
-          return t;
-        });
-        // 아직 병합 안 된 새 월 추가
-        csvMonths.forEach((csvTable) => {
-          merged.push(csvTable);
-        });
-
-        // 월 순서로 정렬
-        merged.sort((a, b) => {
-          const mA = a.title.match(/(\d{1,2})월/);
-          const mB = b.title.match(/(\d{1,2})월/);
-          if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
-          return 0;
-        });
-
-        saveToDb(merged);
-        alert(`✅ ${csvData.length}개 월 일정이 가져와졌습니다!`);
+        setCsvTargetYear(selectedYear);
+        setShowCsvYearModal(true);
       };
 
+      const executeCsvImport = (targetYear) => {
+        const csvData = window.CSV_SCHEDULE_2026;
+        if (!csvData) return;
+        setShowCsvYearModal(false);
+
+        // Save undo snapshot (current data before import)
+        setUndoSnapshot({ year: targetYear, data: [...tables] });
+
+        // Load target year data
+        schedulesBaseRef.child(String(targetYear)).once('value', snap => {
+          let existingTables = normalizeScheduleData(snap.val());
+
+          const csvMonths = new Map();
+          csvData.forEach(t => {
+            const m = t.title.match(/(\d{1,2})월/);
+            if (m) csvMonths.set(parseInt(m[1]), { ...t, title: t.title.replace(/\d{4}년/, `${targetYear}년`) });
+          });
+
+          let merged = existingTables.map(t => {
+            const m = t.title.match(/(\d{1,2})월/);
+            if (!m) return t;
+            const monthNum = parseInt(m[1]);
+            const csvVersion = csvMonths.get(monthNum);
+            if (csvVersion) {
+              if ((t.rows || []).length > (csvVersion.rows || []).length) {
+                csvMonths.delete(monthNum);
+                return t;
+              }
+              csvMonths.delete(monthNum);
+              return csvVersion;
+            }
+            return t;
+          });
+          csvMonths.forEach(csvTable => merged.push(csvTable));
+          merged.sort((a, b) => {
+            const mA = a.title.match(/(\d{1,2})월/);
+            const mB = b.title.match(/(\d{1,2})월/);
+            if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+            return 0;
+          });
+
+          saveToDb(merged, targetYear);
+
+          // Show undo toast
+          setShowUndoToast(true);
+          if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+          undoTimerRef.current = setTimeout(() => {
+            setShowUndoToast(false);
+            setUndoSnapshot(null);
+          }, 30000);
+
+          alert(`✅ CSV 일정이 ${targetYear}년에 가져와졌습니다!`);
+        });
+      };
+
+      // ── Undo ───────────────────────────────────────────────────────────
+      const handleUndo = () => {
+        if (!undoSnapshot) return;
+        saveToDb(undoSnapshot.data, undoSnapshot.year);
+        setUndoSnapshot(null);
+        setShowUndoToast(false);
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        alert('✅ 이전 상태로 되돌리기 완료!');
+      };
+
+      // ── Save display settings ──────────────────────────────────────────
+      const saveDisplaySettings = (newSettings) => {
+        settingsRef.set(newSettings);
+        setDisplaySettings(newSettings);
+        setShowDisplaySettings(false);
+        alert('✅ 노출 설정이 저장되었습니다.');
+      };
+
+      // ── Table CRUD ─────────────────────────────────────────────────────
       const genId = () => Math.random().toString(36).substr(2, 9);
 
       const addTable = () => {
-        let newTitle = '새로운 월 일정';
+        let newTitle = `${selectedYear}년 새 일정`;
         if (tables.length > 0) {
           const lastTable = tables[tables.length - 1];
           const match = lastTable.title.match(/(\d{4})년\s*(\d{1,2})월/);
           if (match) {
             let year = parseInt(match[1], 10);
             let month = parseInt(match[2], 10) + 1;
-            if (month > 12) {
-              year += 1;
-              month = 1;
-            }
+            if (month > 12) { year += 1; month = 1; }
             newTitle = `${year}년 ${month}월 일정`;
           }
         }
@@ -795,11 +1074,8 @@
         saveToDb(tables.map(t => {
           if (t.id === tableId) {
             const arr = [...t.rows];
-            if (dir === 'up' && idx > 0) {
-              [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
-            } else if (dir === 'down' && idx < arr.length - 1) {
-              [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
-            }
+            if (dir === 'up' && idx > 0) { [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]]; }
+            else if (dir === 'down' && idx < arr.length - 1) { [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]]; }
             return { ...t, rows: arr };
           }
           return t;
@@ -820,14 +1096,12 @@
 
       const moveTable = (idx, visualDir) => {
         const arr = [...tables];
-        if (visualDir === 'up' && idx < arr.length - 1) {
-          [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
-        } else if (visualDir === 'down' && idx > 0) {
-          [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
-        }
+        if (visualDir === 'up' && idx < arr.length - 1) { [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]]; }
+        else if (visualDir === 'down' && idx > 0) { [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]]; }
         saveToDb(arr);
       };
 
+      // ── Copy functions ─────────────────────────────────────────────────
       const copyToClipboard = async () => {
         if (!previewRef.current) return;
         try {
@@ -841,7 +1115,6 @@
           setCopySuccess(true);
           setTimeout(() => setCopySuccess(false), 3000);
         } catch (e) {
-          // Fallback
           const range = document.createRange();
           range.selectNode(previewRef.current);
           window.getSelection().removeAllRanges();
@@ -850,9 +1123,7 @@
             document.execCommand('copy');
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 3000);
-          } catch(err) {
-            alert('복사에 실패했습니다. 브라우저가 지원하지 않습니다.');
-          }
+          } catch(err) { alert('복사에 실패했습니다.'); }
           window.getSelection().removeAllRanges();
         }
       };
@@ -873,33 +1144,25 @@
             document.execCommand('copy');
             setCopyHtmlSuccess(true);
             setTimeout(() => setCopyHtmlSuccess(false), 3000);
-          } catch(err) {
-            alert('복사에 실패했습니다.');
-          }
+          } catch(err) { alert('복사에 실패했습니다.'); }
           document.body.removeChild(textArea);
         }
       };
 
+      // ── Auth ───────────────────────────────────────────────────────────
       const handleLogin = (e) => {
         e.preventDefault();
         if (!loginId || !loginPw) return alert('아이디(이메일)와 비밀번호를 입력해주세요.');
-        
         firebase.auth().signInWithEmailAndPassword(loginId, loginPw)
-          .then(() => {
-            setShowLoginModal(false);
-            setLoginId('');
-            setLoginPw('');
-          })
-          .catch((error) => {
-            console.error("Login Error:", error);
-            alert('인증 정보가 올바르지 않습니다.\n(에러: ' + error.message + ')');
-          });
+          .then(() => { setShowLoginModal(false); setLoginId(''); setLoginPw(''); })
+          .catch((error) => { console.error("Login Error:", error); alert('인증 정보가 올바르지 않습니다.\n(에러: ' + error.message + ')'); });
       };
 
       const handleLogout = () => {
         firebase.auth().signOut().catch(err => console.error(err));
       };
 
+      // ── Scroll to today ────────────────────────────────────────────────
       const scrollToTodayNearest = () => {
         const now = new Date();
         const curY = now.getFullYear();
@@ -961,9 +1224,7 @@
                 td.style.backgroundColor = '#fef08a';
               });
               setTimeout(() => {
-                Array.from(el.children).forEach((td, idx) => {
-                  td.style.backgroundColor = origBgs[idx];
-                });
+                Array.from(el.children).forEach((td, idx) => { td.style.backgroundColor = origBgs[idx]; });
               }, 2000);
             }
           }
@@ -972,8 +1233,45 @@
         }
       };
 
+      // ── Display period check for non-logged-in users ───────────────────
+      const isWithinDisplayPeriod = useMemo(() => {
+        const now = new Date();
+        const start = new Date(displaySettings.display_start);
+        const end = new Date(displaySettings.display_end);
+        end.setHours(23, 59, 59, 999);
+        return now >= start && now <= end;
+      }, [displaySettings, currentTime]);
+
+      // ═══════════════════════════════════════════════════════════════════
+      // ═══ RENDER ═══════════════════════════════════════════════════════
+      // ═══════════════════════════════════════════════════════════════════
       return (
         <div className="min-h-screen flex flex-col">
+          {/* ── Archive Notice Toast ── */}
+          {archiveNotice && (
+            <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-white px-6 py-3 rounded-xl shadow-lg font-bold text-sm animate-fade-in flex items-center gap-3">
+              <i className="fa-solid fa-box-archive text-lg"></i>
+              {archiveNotice}
+              <button onClick={() => setArchiveNotice(null)} className="ml-2 hover:bg-amber-600 rounded-full w-6 h-6 flex items-center justify-center">
+                <i className="fa-solid fa-xmark text-xs"></i>
+              </button>
+            </div>
+          )}
+
+          {/* ── Undo Toast ── */}
+          {showUndoToast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl font-bold text-sm undo-toast flex items-center gap-4">
+              <i className="fa-solid fa-rotate-left"></i>
+              CSV 가져오기가 완료되었습니다.
+              <button onClick={handleUndo} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                되돌리기
+              </button>
+              <button onClick={() => { setShowUndoToast(false); setUndoSnapshot(null); }} className="text-slate-400 hover:text-white">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          )}
+
           {/* Top Bar */}
           <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -991,6 +1289,30 @@
                     </p>
                   )}
                 </div>
+                {/* ── Year Selector (Admin only) ── */}
+                {isLoggedIn && availableYears.length > 0 && (
+                  <div className="flex items-center gap-1 ml-2">
+                    <select 
+                      value={selectedYear} 
+                      onChange={e => setSelectedYear(Number(e.target.value))}
+                      className="bg-blue-50 text-blue-700 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-200 outline-none cursor-pointer"
+                    >
+                      {availableYears.map(y => (
+                        <option key={y} value={y}>{y}년</option>
+                      ))}
+                    </select>
+                    <button onClick={() => { setNewYearInput(Math.max(...availableYears) + 1); setShowNewYearModal(true); }}
+                      className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-colors"
+                      title="새 연도 추가">
+                      <i className="fa-solid fa-plus text-xs"></i>
+                    </button>
+                    <button onClick={() => setShowDisplaySettings(true)}
+                      className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-colors"
+                      title="메인 노출 설정">
+                      <i className="fa-solid fa-eye text-xs"></i>
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <div className="hidden md:flex flex-col items-end mr-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100 shadow-inner">
@@ -1027,16 +1349,11 @@
                     </button>
                   </div>
                 )}
-                {isLoggedIn && (
-                  <button disabled className="ml-3 px-4 py-1.5 bg-slate-100 text-slate-400 rounded-xl text-sm font-bold border border-slate-200 flex items-center cursor-not-allowed opacity-80" title="현재 기업 방화벽 우회 기능 개발 중으로 잠시 비활성화되었습니다.">
-                    <i className="fa-solid fa-gear mr-2"></i>다우오피스 동기화 (추후지원)
-                  </button>
-                )}
                 {isLoggedIn && window.CSV_SCHEDULE_2026 && (
                   <button 
-                    onClick={importCsvData}
+                    onClick={triggerCsvImport}
                     className="ml-2 px-3 sm:px-4 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs sm:text-sm font-bold border border-amber-200 flex items-center transition-all shadow-sm"
-                    title="2026총회일정.CSV 데이터를 가져와서 기존 일정에 병합합니다"
+                    title="CSV 데이터를 선택한 연도에 가져옵니다"
                   >
                     <i className="fa-solid fa-file-import mr-1.5"></i>CSV 가져오기
                   </button>
@@ -1084,74 +1401,116 @@
               </div>
             )}
 
-            {/* DaouOffice Settings Modal */}
-            {showDaouSettings && (
+            {/* ── New Year Modal ── */}
+            {showNewYearModal && (
               <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in border border-slate-200 p-6">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                      <i className="fa-solid fa-cloud-arrow-down text-indigo-500"></i> 다우오피스 CalDAV 설정
-                    </h2>
-                    <button onClick={() => setShowDaouSettings(false)} className="text-slate-400 hover:text-slate-600">
-                      <i className="fa-solid fa-xmark text-xl"></i>
-                    </button>
+                <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 relative animate-fade-in">
+                  <button onClick={() => setShowNewYearModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                    <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+                  <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-emerald-500 rounded-2xl text-white flex items-center justify-center text-2xl mx-auto shadow-lg mb-4">
+                      <i className="fa-solid fa-calendar-plus"></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800">새 연도 일정 생성</h2>
+                    <p className="text-sm text-slate-500 mt-2">12개월 빈 템플릿이 자동 생성됩니다.</p>
                   </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">연도 입력</label>
+                    <input type="number" value={newYearInput} onChange={e => setNewYearInput(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-bold text-2xl text-center"
+                      min="2020" max="2100" />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowNewYearModal(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={() => createNewYear(newYearInput)} className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-colors shadow">생성</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
+            {/* ── Display Settings Modal ── */}
+            {showDisplaySettings && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 relative animate-fade-in">
+                  <button onClick={() => setShowDisplaySettings(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                    <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+                  <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-amber-500 rounded-2xl text-white flex items-center justify-center text-2xl mx-auto shadow-lg mb-4">
+                      <i className="fa-solid fa-eye"></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800">메인 페이지 노출 설정</h2>
+                    <p className="text-sm text-slate-500 mt-2">비로그인 사용자에게 보여줄 연도와 기간을 설정합니다.</p>
+                  </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">다우오피스 접속 주소</label>
-                      <input value={daouUrl} onChange={e => setDaouUrl(e.target.value)} placeholder="예: https://gw.company.com" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
+                      <label className="block text-sm font-bold text-slate-700 mb-1">노출 연도</label>
+                      <select value={displaySettings.display_year} onChange={e => setDisplaySettings({...displaySettings, display_year: Number(e.target.value)})}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 font-bold text-lg">
+                        {availableYears.map(y => <option key={y} value={y}>{y}년</option>)}
+                      </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">로그인 ID</label>
-                      <input value={daouId} onChange={e => setDaouId(e.target.value)} placeholder="사번 또는 이메일 (@포함)" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">비밀번호</label>
-                      <input type="password" value={daouPw} onChange={e => setDaouPw(e.target.value)} placeholder="비밀번호" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all font-medium text-sm" />
-                    </div>
-
-                    <div className="pt-2">
-                      <button onClick={() => {
-                        localStorage.setItem('daou_url', daouUrl);
-                        localStorage.setItem('daou_id', daouId);
-                        localStorage.setItem('daou_pw', daouPw);
-                        alert('다우오피스 접속 정보가 브라우저에 안전히 저장되었습니다.');
-                      }} className="w-full py-2.5 mb-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">설정 저장</button>
-
-                      <div className="flex gap-2">
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => moveTable(tables.findIndex(t => t.id === table.id), 'up')} className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm flex items-center justify-center transition-colors px-0 py-0" title="올리기">
-                            <i className="fa-solid fa-arrow-up text-xs"></i>
-                          </button>
-                          <button onClick={() => moveTable(tables.findIndex(t => t.id === table.id), 'down')} className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm flex items-center justify-center transition-colors px-0 py-0 mr-2" title="내리기">
-                            <i className="fa-solid fa-arrow-down text-xs"></i>
-                          </button>
-                          <button onClick={() => deleteTable(table.id)} className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 text-rose-500 hover:bg-rose-100 shadow-sm flex items-center justify-center transition-colors">
-                            <i className="fa-solid fa-trash-can text-sm"></i>
-                          </button>
-                        </div>
-                        <button onClick={fetchFromDaou} disabled={isSyncing} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
-                          {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-download"></i>}
-                          가져오기
-                        </button>
-                        <button onClick={exportToDaou} disabled={isSyncing} className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
-                          {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-upload"></i>}
-                          내보내기
-                        </button>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">노출 시작일</label>
+                        <input type="date" value={displaySettings.display_start} onChange={e => setDisplaySettings({...displaySettings, display_start: e.target.value})}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">노출 종료일</label>
+                        <input type="date" value={displaySettings.display_end} onChange={e => setDisplaySettings({...displaySettings, display_end: e.target.value})}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-sm" />
                       </div>
                     </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+                      <i className="fa-solid fa-circle-info mr-1"></i>
+                      현재 설정: <strong>{displaySettings.display_year}년</strong> 일정이 <strong>{displaySettings.display_start}</strong> ~ <strong>{displaySettings.display_end}</strong> 기간 동안 메인 페이지에 노출됩니다.
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-6">
+                    <button onClick={() => setShowDisplaySettings(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={() => saveDisplaySettings(displaySettings)} className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors shadow">저장</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                    <p className="text-xs text-slate-500 mt-4 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <strong className="text-rose-500">주의:</strong> 브라우저 보안 정책(CORS)으로 인해 차단될 수 있습니다. <code>Fetch Error</code> 발생 시 "Allow CORS" 등의 확장 프로그램을 활성화하세요.<br/>(비밀번호는 로컬PC에만 보관됩니다)
-                    </p>
+            {/* ── CSV Year Selection Modal ── */}
+            {showCsvYearModal && (
+              <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200 relative animate-fade-in">
+                  <button onClick={() => setShowCsvYearModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                    <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+                  <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-amber-500 rounded-2xl text-white flex items-center justify-center text-2xl mx-auto shadow-lg mb-4">
+                      <i className="fa-solid fa-file-import"></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800">CSV 가져오기</h2>
+                    <p className="text-sm text-slate-500 mt-2">이 CSV 일정을 어느 연도에 적용하시겠습니까?</p>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">적용 연도 선택</label>
+                    <select value={csvTargetYear} onChange={e => setCsvTargetYear(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 font-bold text-lg">
+                      {availableYears.map(y => <option key={y} value={y}>{y}년</option>)}
+                    </select>
+                  </div>
+                  <p className="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 mb-6">
+                    <i className="fa-solid fa-info-circle mr-1 text-blue-500"></i>
+                    기존 같은 월 일정이 있으면 CSV 데이터로 병합됩니다. 가져오기 후 <strong>되돌리기</strong>가 30초간 가능합니다.
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowCsvYearModal(false)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-colors">취소</button>
+                    <button onClick={() => executeCsvImport(csvTargetYear)} className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors shadow">가져오기</button>
                   </div>
                 </div>
               </div>
             )}
 
             {viewMode === 'archive' ? (
-              <ArchiveView />
+              <ArchiveView archivedSchedules={archivedSchedules} />
             ) : viewMode === 'edit' ? (
               <div className="space-y-8 animate-fade-in pb-20">
                 <button onClick={addTable} className="w-full py-5 mb-2 border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl text-blue-600 font-bold hover:bg-blue-100 hover:border-blue-400 transition-all shadow-sm flex items-center justify-center gap-2">
@@ -1246,7 +1605,8 @@
                                              const parts = s.split('.');
                                              h = parseInt(parts[0], 10);
                                              m = parts[1] === '5' ? '30' : (parts[1] + '0').substring(0, 2);
-                                           } else                                           if (/^\d{3,4}$/.test(s)) {
+                                           } else
+                                          if (/^\d{3,4}$/.test(s)) {
                                             h = parseInt(s.substring(0, s.length - 2), 10);
                                             m = s.substring(s.length - 2);
                                           } else if (/^\d{1,2}:\d{2}$/.test(s)) {
@@ -1258,7 +1618,6 @@
                                             m = "00";
                                           }
                                           if (isNaN(h)) return s;
-                                          
                                           let period = "오전";
                                           let displayH = h;
                                           if (h === 12) period = "오후";
@@ -1272,22 +1631,12 @@
                                         if (pts.length === 1) newVal = parseT(pts[0]);
                                         else if (pts.length >= 2) newVal = `${parseT(pts[0])} ~ ${parseT(pts[1])}`;
                                       }
-                                      
                                       if (newVal !== val) updateRow(table.id, row.id, 'time', newVal);
                                       setTimeout(() => setActiveTimeRow(null), 150);
                                     }}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600 focus:bg-blue-50/20" 
                                     placeholder="오전 10:00 ~ 12:00" 
                                   />
-                                  {/* activeTimeRow === row.id && (
-                                    <div className="mt-2 bg-slate-50 border border-slate-200 shadow-sm rounded-xl p-2 w-full flex flex-wrap gap-1.5 animate-fade-in-up">
-                                       {['오전 10:00 ~ 12:00', '오전 10:30 ~ 12:30', '오후 1:00 ~ 3:00', '오후 2:00 ~ 4:00', '종일'].map(t => (
-                                          <button key={t} tabIndex="-1" onMouseDown={(e) => { e.preventDefault(); updateRow(table.id, row.id, 'time', t); setActiveTimeRow(null); }} className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[12px] font-medium rounded-lg transition-colors border border-slate-200 shadow-sm">
-                                            {t}
-                                          </button>
-                                       ))}
-                                    </div>
-                                  ) */}
                                 </td>
                                 <td className="p-2">
                                   <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
@@ -1310,21 +1659,12 @@
                                               let day = parseInt(m[2], 10);
                                               let d = new Date(year, month - 1, day);
                                               d.setDate(d.getDate() + 1);
-                                              
-                                              if (d.getDay() === 6) {
-                                                d.setDate(d.getDate() + 2);
-                                                alert('주말(토/일)을 건너뛰고 다음 월요일을 생성합니다!');
-                                              } else if (d.getDay() === 0) {
-                                                d.setDate(d.getDate() + 1);
-                                                alert('주말(일)을 건너뛰고 다음 월요일을 생성합니다!');
-                                              }
-                                              
+                                              if (d.getDay() === 6) { d.setDate(d.getDate() + 2); }
+                                              else if (d.getDay() === 0) { d.setDate(d.getDate() + 1); }
                                               const days = ['일', '월', '화', '수', '목', '금', '토'];
                                               const newMonth = String(d.getMonth() + 1).padStart(2, '0');
                                               const newDay = String(d.getDate()).padStart(2, '0');
-                                              const newWeekday = days[d.getDay()];
-                                              
-                                              nextDateData.date = `${newMonth}.${newDay}(${newWeekday})`;
+                                              nextDateData.date = `${newMonth}.${newDay}(${days[d.getDay()]})`;
                                             }
                                           }
                                         }
@@ -1364,172 +1704,160 @@
               </div>
             ) : (
               <div className="animate-fade-in">
-                {/* Search Bar Below Title */}
-                <div className="w-full max-w-2xl mx-auto mb-8 relative">
-                  <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
-                  <input 
-                    type="text" 
-                    placeholder="부서명, 행사 제목, 날짜 키워드로 빠르게 일정을 찾아보세요..." 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 shadow-sm rounded-2xl text-[15px] focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none font-medium text-slate-700"
-                  />
-                </div>
-
-                <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-10">
-                  {/* Fixed Control Panel */}
-                {isLoggedIn && (
-                <div className="w-full lg:w-72 shrink-0 lg:sticky lg:top-24 space-y-4">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xl mb-4">
-                      <i className="fa-solid fa-check"></i>
-                    </div>
-                    <h2 className="text-lg font-bold text-slate-800 mb-2">복사 준비 완료</h2>
-                    <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-                      우측에 보이는 표를 게시판(카페, 블로그, 그룹웨어)에 바로 붙여넣을 수 있습니다. HTML이 깨지지 않게 디자인 코드가 표 안에 직접 내장되어 있습니다. (신뢰감을 주는 네이비/블루 테마)
-                    </p>
-                    <button 
-                      onClick={copyToClipboard}
-                      className={`w-full py-3.5 px-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${copySuccess ? 'bg-emerald-500 scale-[0.98]' : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-1 hover:shadow-blue-200'}`}
-                    >
-                      {copySuccess ? (
-                        <><i className="fa-solid fa-check-double text-lg"></i> 클립보드 복사됨!</>
-                      ) : (
-                        <><i className="fa-regular fa-copy text-lg"></i> 일정표 복사하기(위지윅지원)</>
-                      )}
-                    </button>
-
-                    <button 
-                      onClick={copyHtmlSource}
-                      className={`w-full mt-3 py-3 px-4 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${copyHtmlSuccess ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
-                    >
-                      {copyHtmlSuccess ? (
-                        <><i className="fa-solid fa-check text-lg"></i> 코드 복사 완료!</>
-                      ) : (
-                        <><i className="fa-solid fa-code text-lg"></i> HTML 코드 복사하기</>
-                      )}
-                    </button>
-
-                    {(copySuccess || copyHtmlSuccess) && (
-                      <p className="text-center text-xs text-emerald-600 font-bold mt-3 animate-fade-in bg-emerald-50 py-2 rounded-lg">
-                        이제 게시판 {copyHtmlSuccess ? 'HTML 작성 모드' : '글쓰기 창'}에서<br/>[ Ctrl + V ] 를 누르세요!
-                      </p>
-                    )}
+                {/* Non-logged-in: display period check */}
+                {!isLoggedIn && !isWithinDisplayPeriod && (
+                  <div className="text-center py-20">
+                    <i className="fa-solid fa-calendar-xmark text-5xl text-slate-300 mb-4 block"></i>
+                    <h2 className="text-xl font-bold text-slate-600 mb-2">현재 공개된 일정이 없습니다</h2>
+                    <p className="text-slate-400">일정 노출 기간이 아닙니다. 관리자에게 문의하세요.</p>
                   </div>
-                  
-                  <div className="bg-slate-100 px-5 py-4 rounded-2xl border border-slate-200 text-sm text-slate-600 leading-relaxed">
-                    <p className="font-bold text-slate-800 mb-2"><i className="fa-solid fa-circle-info mr-2 text-blue-500"></i>이용 팁</p>
-                    <ul className="list-disc pl-5 space-y-2 text-[13px] opacity-80">
-                      <li><strong>일정표 복사하기:</strong> 네이버 카페/블로그, 웹메일 등 일반 글쓰기 창에서 [Ctrl+V] 하시면 표 모양 그대로 붙여넣어집니다.</li>
-                      <li><strong>HTML 코드 복사하기:</strong> 일반 붙여넣기가 깨지거나 지원되지 않을 때 사용합니다. 홈페이지 게시판의 <strong className="text-blue-600">'소스보기(HTML)'</strong> 버튼을 클릭하여 소스 모드로 전환한 뒤 HTML 코드를 붙여넣습니다. 이후 다시 소스보기를 해제하시면 완성된 표가 깔끔하게 렌더링된 것을 확인하실 수 있습니다.</li>
-                      <li>날짜를 비워두시면 윗줄과 자연스럽게 연결된 (병합된) 디자인이 자동으로 적용됩니다.</li>
-                    </ul>
-                  </div>
-                </div>
                 )}
 
-                {/* Preview Area - Exactly what is copied */}
-                <div className="flex-1 bg-white p-4 sm:p-10 rounded-2xl border border-slate-200 shadow-sm w-full overflow-x-auto">
-                  <div ref={previewRef} className="preview-html-container">
-                    {/* 👇 THIS IS THE COPIED INLINE STYLED HTML 👇 */}
-                    <div style={{ fontFamily: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif", width: "100%", maxWidth: "900px", margin: "0 auto", color: "#111827", lineHeight: "1.4" }}>
-                      
-                      {tables.map(table => {
-                        const lowSearch = searchQuery.toLowerCase();
-                        const filteredRows = (table.rows || []).filter(r => 
-                          !searchQuery || 
-                          (r.title && r.title.toLowerCase().includes(lowSearch)) || 
-                          (r.dept && r.dept.toLowerCase().includes(lowSearch)) || 
-                          (r.date && r.date.toLowerCase().includes(lowSearch))
-                        );
-
-                        if (searchQuery && filteredRows.length === 0) return null;
-
-                        return (
-                          <div key={table.id} style={{ marginBottom: "50px" }}>
-                            
-                            <h3 style={{ fontSize: "17px", fontWeight: "bold", color: "#1e3a8a", paddingBottom: "10px", marginBottom: "12px", borderBottom: "2px solid #1e3a8a", display: "flex", alignItems: "center" }}>
-                              <span style={{ display: "inline-block", width: "5px", height: "16px", backgroundColor: "#1e3a8a", marginRight: "10px", verticalAlign: "middle" }}></span>
-                              {table.title}
-                            </h3>
-
-                            <table border="0" cellPadding="0" cellSpacing="0" style={{ width: "100%", borderCollapse: "collapse", textAlign: "center", fontSize: "14px", backgroundColor: "#ffffff" }}>
-                              <thead>
-                                <tr>
-                                  <th style={{ width: "16%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>날짜</th>
-                                  <th style={{ width: "24%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>시간</th>
-                                  <th style={{ width: "42%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>제 목</th>
-                                  <th style={{ width: "18%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1" }}>담 당</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredRows.map((row, i) => {
-                                  const myActualDate = row.date ? row.date.trim() : '';
-                                  let showDate = true;
-                                  let displayDateStr = myActualDate;
-                                  
-                                  let lastSeenDate = '';
-                                  for (let j = i - 1; j >= 0; j--) {
-                                    if (filteredRows[j].date && filteredRows[j].date.trim() !== '') {
-                                      lastSeenDate = filteredRows[j].date.trim();
-                                      break;
-                                    }
-                                  }
-
-                                  if (i > 0) {
-                                    if (!myActualDate || myActualDate === lastSeenDate) {
-                                      showDate = false;
-                                    }
-                                  } else {
-                                    if (!myActualDate) showDate = false;
-                                  }
-                                  
-                                  if (showDate && !myActualDate) displayDateStr = ''; // Fallback, shouldn't really happen on first row, but safe
-                                  
-                                  const isLast = i === filteredRows.length - 1;
-                                  const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
-                                  const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
-                                  return (
-                                    <tr id={`row-${row.id}`} key={row.id}>
-                                      <td style={{ 
-                                        padding: "10px 8px", 
-                                        borderRight: "1px solid #e2e8f0", 
-                                        borderBottom: bottomBorder,
-                                        backgroundColor: rowBg,
-                                        fontWeight: "bold", 
-                                        color: "#1e3a8a",
-                                        borderTop: showDate ? "1px solid #cbd5e1" : "1px dashed #e2e8f0",
-                                        verticalAlign: "middle"
-                                      }}>
-                                        {showDate ? displayDateStr : ''}
-                                      </td>
-                                      <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
-                                        {row.time}
-                                      </td>
-                                      <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, textAlign: "left", color: "#1e293b", fontWeight: "600", verticalAlign: "middle" }}>
-                                        {row.title}
-                                      </td>
-                                      <td style={{ padding: "10px 8px", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
-                                        {row.dept}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                          </table>
-
-                        </div>
-                      )})}
-                      
-                      <div style={{ marginTop: "15px", fontSize: "12px", color: "#9ca3af", textAlign: "right" }}>
-                        ※ 단, 상기 일정은 사정에 따라 변경될 수 있습니다.
-                      </div>
-
+                {(isLoggedIn || isWithinDisplayPeriod) && (
+                  <>
+                    {/* Search Bar Below Title */}
+                    <div className="w-full max-w-2xl mx-auto mb-8 relative">
+                      <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                      <input 
+                        type="text" 
+                        placeholder="부서명, 행사 제목, 날짜 키워드로 빠르게 일정을 찾아보세요..." 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 shadow-sm rounded-2xl text-[15px] focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none font-medium text-slate-700"
+                      />
                     </div>
-                    {/* 👆 END HTML FOR COPY/PASTE 👆 */}
+
+                    <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-10">
+                      {/* Fixed Control Panel */}
+                    {isLoggedIn && (
+                    <div className="w-full lg:w-72 shrink-0 lg:sticky lg:top-24 space-y-4">
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xl mb-4">
+                          <i className="fa-solid fa-check"></i>
+                        </div>
+                        <h2 className="text-lg font-bold text-slate-800 mb-2">복사 준비 완료</h2>
+                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                          우측에 보이는 표를 게시판(카페, 블로그, 그룹웨어)에 바로 붙여넣을 수 있습니다.
+                        </p>
+                        <button 
+                          onClick={copyToClipboard}
+                          className={`w-full py-3.5 px-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${copySuccess ? 'bg-emerald-500 scale-[0.98]' : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-1 hover:shadow-blue-200'}`}
+                        >
+                          {copySuccess ? (
+                            <><i className="fa-solid fa-check-double text-lg"></i> 클립보드 복사됨!</>
+                          ) : (
+                            <><i className="fa-regular fa-copy text-lg"></i> 일정표 복사하기(위지윅지원)</>
+                          )}
+                        </button>
+
+                        <button 
+                          onClick={copyHtmlSource}
+                          className={`w-full mt-3 py-3 px-4 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${copyHtmlSuccess ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                        >
+                          {copyHtmlSuccess ? (
+                            <><i className="fa-solid fa-check text-lg"></i> 코드 복사 완료!</>
+                          ) : (
+                            <><i className="fa-solid fa-code text-lg"></i> HTML 코드 복사하기</>
+                          )}
+                        </button>
+
+                        {(copySuccess || copyHtmlSuccess) && (
+                          <p className="text-center text-xs text-emerald-600 font-bold mt-3 animate-fade-in bg-emerald-50 py-2 rounded-lg">
+                            이제 게시판 {copyHtmlSuccess ? 'HTML 작성 모드' : '글쓰기 창'}에서<br/>[ Ctrl + V ] 를 누르세요!
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="bg-slate-100 px-5 py-4 rounded-2xl border border-slate-200 text-sm text-slate-600 leading-relaxed">
+                        <p className="font-bold text-slate-800 mb-2"><i className="fa-solid fa-circle-info mr-2 text-blue-500"></i>이용 팁</p>
+                        <ul className="list-disc pl-5 space-y-2 text-[13px] opacity-80">
+                          <li><strong>일정표 복사하기:</strong> 네이버 카페/블로그, 웹메일 등 일반 글쓰기 창에서 [Ctrl+V] 하시면 표 모양 그대로 붙여넣어집니다.</li>
+                          <li><strong>HTML 코드 복사하기:</strong> 홈페이지 게시판의 <strong className="text-blue-600">'소스보기(HTML)'</strong> 버튼을 클릭하여 소스 모드로 전환한 뒤 HTML 코드를 붙여넣습니다.</li>
+                          <li>날짜를 비워두시면 윗줄과 자연스럽게 연결된 (병합된) 디자인이 자동으로 적용됩니다.</li>
+                        </ul>
+                      </div>
+                    </div>
+                    )}
+
+                    {/* Preview Area */}
+                    <div className="flex-1 bg-white p-4 sm:p-10 rounded-2xl border border-slate-200 shadow-sm w-full overflow-x-auto">
+                      <div ref={previewRef} className="preview-html-container">
+                        <div style={{ fontFamily: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif", width: "100%", maxWidth: "900px", margin: "0 auto", color: "#111827", lineHeight: "1.4" }}>
+                          
+                          {tables.map(table => {
+                            const lowSearch = searchQuery.toLowerCase();
+                            const filteredRows = (table.rows || []).filter(r => 
+                              !searchQuery || 
+                              (r.title && r.title.toLowerCase().includes(lowSearch)) || 
+                              (r.dept && r.dept.toLowerCase().includes(lowSearch)) || 
+                              (r.date && r.date.toLowerCase().includes(lowSearch))
+                            );
+                            if (searchQuery && filteredRows.length === 0) return null;
+                            return (
+                              <div key={table.id} style={{ marginBottom: "50px" }}>
+                                <h3 style={{ fontSize: "17px", fontWeight: "bold", color: "#1e3a8a", paddingBottom: "10px", marginBottom: "12px", borderBottom: "2px solid #1e3a8a", display: "flex", alignItems: "center" }}>
+                                  <span style={{ display: "inline-block", width: "5px", height: "16px", backgroundColor: "#1e3a8a", marginRight: "10px", verticalAlign: "middle" }}></span>
+                                  {table.title}
+                                </h3>
+                                <table border="0" cellPadding="0" cellSpacing="0" style={{ width: "100%", borderCollapse: "collapse", textAlign: "center", fontSize: "14px", backgroundColor: "#ffffff" }}>
+                                  <thead>
+                                    <tr>
+                                      <th style={{ width: "16%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>날짜</th>
+                                      <th style={{ width: "24%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>시간</th>
+                                      <th style={{ width: "42%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1", borderRight: "1px solid #e2e8f0" }}>제 목</th>
+                                      <th style={{ width: "18%", padding: "10px 8px", fontWeight: "bold", color: "#334155", backgroundColor: "#f1f5f9", borderTop: "2px solid #1e3a8a", borderBottom: "1px solid #cbd5e1" }}>담 당</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filteredRows.map((row, i) => {
+                                      const myActualDate = row.date ? row.date.trim() : '';
+                                      let showDate = true;
+                                      let displayDateStr = myActualDate;
+                                      let lastSeenDate = '';
+                                      for (let j = i - 1; j >= 0; j--) {
+                                        if (filteredRows[j].date && filteredRows[j].date.trim() !== '') {
+                                          lastSeenDate = filteredRows[j].date.trim();
+                                          break;
+                                        }
+                                      }
+                                      if (i > 0) { if (!myActualDate || myActualDate === lastSeenDate) { showDate = false; } }
+                                      else { if (!myActualDate) showDate = false; }
+                                      if (showDate && !myActualDate) displayDateStr = '';
+                                      const isLast = i === filteredRows.length - 1;
+                                      const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                                      const bottomBorder = isLast ? "2px solid #1e3a8a" : "1px solid #e2e8f0";
+                                      return (
+                                        <tr id={`row-${row.id}`} key={row.id}>
+                                          <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, fontWeight: "bold", color: "#1e3a8a", borderTop: showDate ? "1px solid #cbd5e1" : "1px dashed #e2e8f0", verticalAlign: "middle" }}>
+                                            {showDate ? displayDateStr : ''}
+                                          </td>
+                                          <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
+                                            {row.time}
+                                          </td>
+                                          <td style={{ padding: "10px 8px", borderRight: "1px solid #e2e8f0", borderBottom: bottomBorder, backgroundColor: rowBg, textAlign: "left", color: "#1e293b", fontWeight: "600", verticalAlign: "middle" }}>
+                                            {row.title}
+                                          </td>
+                                          <td style={{ padding: "10px 8px", borderBottom: bottomBorder, backgroundColor: rowBg, color: "#475569", verticalAlign: "middle", fontSize: "13px" }}>
+                                            {row.dept}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })}
+                          
+                          <div style={{ marginTop: "15px", fontSize: "12px", color: "#9ca3af", textAlign: "right" }}>
+                            ※ 단, 상기 일정은 사정에 따라 변경될 수 있습니다.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                  </>
+                )}
               </div>
             )}
             <datalist id="title-suggestions">
@@ -1556,5 +1884,6 @@
       });
     }
   </script>
+
 </body>
 </html>

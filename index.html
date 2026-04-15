@@ -25,6 +25,8 @@
 
   <!-- History Data -->
   <script src="history_data.js"></script>
+  <!-- CSV Schedule Data -->
+  <script src="csv_schedule_2026.js"></script>
 
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -549,13 +551,19 @@
 
       const [tables, setTables] = useState(initialData);
 
-      const allTitles = React.useMemo(() => {
-        return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.title)).filter(t => t && t.trim() !== '')));
+      // Normalize: ensure every table has a rows array (Firebase RTDB drops empty arrays)
+      const safeTables = React.useMemo(() => {
+        if (!Array.isArray(tables)) return [];
+        return tables.map(t => ({ ...t, rows: Array.isArray(t.rows) ? t.rows : [] }));
       }, [tables]);
 
+      const allTitles = React.useMemo(() => {
+        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.title)).filter(t => t && t.trim() !== '')));
+      }, [safeTables]);
+
       const allDepts = React.useMemo(() => {
-        return Array.from(new Set(tables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
-      }, [tables]);
+        return Array.from(new Set(safeTables.flatMap(t => t.rows.map(r => r.dept)).filter(d => d && d.trim() !== '')));
+      }, [safeTables]);
 
       const [copySuccess, setCopySuccess] = useState(false);
       const [copyHtmlSuccess, setCopyHtmlSuccess] = useState(false);
@@ -610,7 +618,44 @@
         const onData = scheduleRef.on('value', (snapshot) => {
           const data = snapshot.val();
           if (data) {
-            setTables(data);
+            // Normalize: ensure every table entry has a rows array
+            const normalized = (Array.isArray(data) ? data : Object.values(data)).map(t => ({
+              ...t,
+              rows: Array.isArray(t.rows) ? t.rows : (t.rows ? Object.values(t.rows) : [])
+            }));
+
+            // Auto-recover: if initialData months are missing or degraded, restore them
+            let needsRepair = false;
+            let repaired = [...normalized];
+            for (const initTable of initialData) {
+              const initMonth = initTable.title.match(/(\d{1,2})월/);
+              if (!initMonth) continue;
+              const monthNum = parseInt(initMonth[1]);
+              const fbIdx = repaired.findIndex(t => {
+                const m = t.title.match(/(\d{1,2})월/);
+                return m && parseInt(m[1]) === monthNum;
+              });
+              if (fbIdx === -1) {
+                // Month missing entirely — add it
+                repaired.push(initTable);
+                needsRepair = true;
+              } else if (repaired[fbIdx].rows.length < 3 && initTable.rows.length >= 3) {
+                // Month degraded (e.g. replaced by trivial CSV entry) — restore
+                repaired[fbIdx] = initTable;
+                needsRepair = true;
+              }
+            }
+            if (needsRepair) {
+              // Sort by month
+              repaired.sort((a, b) => {
+                const mA = a.title.match(/(\d{1,2})월/);
+                const mB = b.title.match(/(\d{1,2})월/);
+                if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+                return 0;
+              });
+              scheduleRef.set(repaired);
+            }
+            setTables(needsRepair ? repaired : normalized);
           } else {
             // Initialize server with local data if empty
             const saved = localStorage.getItem('prokScheduleEditor');
@@ -627,6 +672,58 @@
       const saveToDb = (newTables) => {
         setTables(newTables);
         scheduleRef.set(newTables);
+      };
+
+      // CSV 데이터 가져오기 (병합)
+      const importCsvData = () => {
+        const csvData = window.CSV_SCHEDULE_2026;
+        if (!csvData || !Array.isArray(csvData)) {
+          return alert('CSV 데이터가 로드되지 않았습니다.');
+        }
+        if (!confirm(`CSV에서 ${csvData.length}개 월 일정을 가져옵니다. 기존 같은 월 일정은 CSV 데이터로 대체됩니다. 계속하시겠습니까?`)) return;
+
+        const existingById = {};
+        tables.forEach(t => { existingById[t.id] = t; });
+        
+        // CSV 데이터의 월 추출
+        const csvMonths = new Map(); // monthNum -> csvTable
+        csvData.forEach(t => {
+          const m = t.title.match(/(\d{1,2})월/);
+          if (m) csvMonths.set(parseInt(m[1]), t);
+        });
+
+        // 기존 데이터에서 CSV 월에 해당하는 것 교체 (단, 기존이 더 풍부하면 보호)
+        let merged = tables.map(t => {
+          const m = t.title.match(/(\d{1,2})월/);
+          if (!m) return t;
+          const monthNum = parseInt(m[1]);
+          const csvVersion = csvMonths.get(monthNum);
+          if (csvVersion) {
+            // CSV 버전이 있으면: 기존이 더 풍부한 경우 보호
+            if ((t.rows || []).length > (csvVersion.rows || []).length) {
+              csvMonths.delete(monthNum); // 사용됨 표시
+              return t; // 기존 유지
+            }
+            csvMonths.delete(monthNum);
+            return csvVersion;
+          }
+          return t;
+        });
+        // 아직 병합 안 된 새 월 추가
+        csvMonths.forEach((csvTable) => {
+          merged.push(csvTable);
+        });
+
+        // 월 순서로 정렬
+        merged.sort((a, b) => {
+          const mA = a.title.match(/(\d{1,2})월/);
+          const mB = b.title.match(/(\d{1,2})월/);
+          if (mA && mB) return parseInt(mA[1]) - parseInt(mB[1]);
+          return 0;
+        });
+
+        saveToDb(merged);
+        alert(`✅ ${csvData.length}개 월 일정이 가져와졌습니다!`);
       };
 
       const genId = () => Math.random().toString(36).substr(2, 9);
@@ -809,8 +906,9 @@
         for (const table of tables) {
            const yrMatch = table.title.match(/(\d{4})년/);
            const y = yrMatch ? parseInt(yrMatch[1], 10) : curY;
-           for (let i = 0; i < table.rows.length; i++) {
-             const r = table.rows[i];
+           const safeRows = table.rows || [];
+           for (let i = 0; i < safeRows.length; i++) {
+             const r = safeRows[i];
              let rDateStr = r.date ? r.date.trim() : '';
              if (rDateStr) {
                const mMatch = rDateStr.match(/(\d{1,2})\.(\d{1,2})/);
@@ -928,6 +1026,15 @@
                 {isLoggedIn && (
                   <button disabled className="ml-3 px-4 py-1.5 bg-slate-100 text-slate-400 rounded-xl text-sm font-bold border border-slate-200 flex items-center cursor-not-allowed opacity-80" title="현재 기업 방화벽 우회 기능 개발 중으로 잠시 비활성화되었습니다.">
                     <i className="fa-solid fa-gear mr-2"></i>다우오피스 동기화 (추후지원)
+                  </button>
+                )}
+                {isLoggedIn && window.CSV_SCHEDULE_2026 && (
+                  <button 
+                    onClick={importCsvData}
+                    className="ml-2 px-3 sm:px-4 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs sm:text-sm font-bold border border-amber-200 flex items-center transition-all shadow-sm"
+                    title="2026총회일정.CSV 데이터를 가져와서 기존 일정에 병합합니다"
+                  >
+                    <i className="fa-solid fa-file-import mr-1.5"></i>CSV 가져오기
                   </button>
                 )}
                 <button 
@@ -1075,11 +1182,11 @@
                           </tr>
                         </thead>
                         <tbody>
-                          {table.rows.map((row, i) => {
+                          {(table.rows || []).map((row, i) => {
                             let inheritedDate = "";
                             for (let j = i - 1; j >= 0; j--) {
-                              if (table.rows[j].date && table.rows[j].date.trim() !== "") {
-                                inheritedDate = table.rows[j].date.trim();
+                              if ((table.rows || [])[j].date && (table.rows || [])[j].date.trim() !== "") {
+                                inheritedDate = (table.rows || [])[j].date.trim();
                                 break;
                               }
                             }
@@ -1231,7 +1338,7 @@
                                     <button tabIndex="-1" onClick={() => addRow(table.id, i)} className="w-7 h-7 rounded text-blue-500 hover:bg-blue-100 flex items-center justify-center transition-colors"><i className="fa-solid fa-plus text-xs"></i></button>
                                     <div className="flex flex-col gap-[2px]">
                                       <button tabIndex="-1" onClick={() => moveRow(table.id, i, 'up')} disabled={i === 0} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-t flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-up text-[10px] text-slate-600"></i></button>
-                                      <button tabIndex="-1" onClick={() => moveRow(table.id, i, 'down')} disabled={i === table.rows.length - 1} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-b flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-down text-[10px] text-slate-600"></i></button>
+                                      <button tabIndex="-1" onClick={() => moveRow(table.id, i, 'down')} disabled={i === (table.rows || []).length - 1} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-b flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-down text-[10px] text-slate-600"></i></button>
                                     </div>
                                     <button tabIndex="-1" onClick={() => duplicateRow(table.id, i)} className="w-7 h-7 rounded text-indigo-500 hover:bg-indigo-100 flex items-center justify-center ml-1 transition-colors" title="이 일정 밑으로 똑같이 복사하기"><i className="fa-regular fa-copy text-sm"></i></button>
                                     <button tabIndex="-1" onClick={() => deleteRow(table.id, row.id)} className="w-7 h-7 rounded text-rose-400 hover:bg-rose-100 flex items-center justify-center ml-1 transition-colors"><i className="fa-solid fa-xmark text-sm"></i></button>
@@ -1244,7 +1351,7 @@
                       </table>
                     </div>
                     <div className="px-5 py-3 bg-slate-50 border-t border-slate-200">
-                      <button onClick={() => addRow(table.id, table.rows.length - 1)} className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors inline-flex items-center">
+                      <button onClick={() => addRow(table.id, (table.rows || []).length - 1)} className="text-sm font-bold text-blue-600 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors inline-flex items-center">
                         <i className="fa-solid fa-plus mr-2"></i> 새 항목 추가
                       </button>
                     </div>
@@ -1325,7 +1432,7 @@
                       
                       {tables.map(table => {
                         const lowSearch = searchQuery.toLowerCase();
-                        const filteredRows = table.rows.filter(r => 
+                        const filteredRows = (table.rows || []).filter(r => 
                           !searchQuery || 
                           (r.title && r.title.toLowerCase().includes(lowSearch)) || 
                           (r.dept && r.dept.toLowerCase().includes(lowSearch)) || 

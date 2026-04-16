@@ -1377,28 +1377,30 @@
               </div>
 
               {/* ── Center: Premium Spread-Out Clock ── */}
-              <div 
-                onClick={scrollToTodayNearest}
-                className="hidden lg:flex absolute left-1/2 -translate-x-1/2 cursor-pointer group items-center overflow-hidden rounded-2xl bg-slate-50/80 backdrop-blur-md border border-slate-200/80 shadow-sm px-6 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md hover:border-blue-300 hover:scale-[1.02] z-10"
-                title="클릭하여 오늘 일정으로 즉시 이동"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="relative flex items-center gap-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+              {!isLoggedIn && (
+                <div 
+                  onClick={scrollToTodayNearest}
+                  className="hidden lg:flex absolute left-1/2 -translate-x-1/2 cursor-pointer group items-center overflow-hidden rounded-2xl bg-slate-50/80 backdrop-blur-md border border-slate-200/80 shadow-sm px-6 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md hover:border-blue-300 hover:scale-[1.02] z-10"
+                  title="클릭하여 오늘 일정으로 즉시 이동"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="relative flex items-center gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                      </div>
+                      <span className="text-[13.5px] font-bold text-slate-500 tracking-wide">
+                        {currentTime.getFullYear()}년 {currentTime.getMonth() + 1}월 {currentTime.getDate()}일 ({['일','월','화','수','목','금','토'][currentTime.getDay()]})
+                      </span>
                     </div>
-                    <span className="text-[13.5px] font-bold text-slate-500 tracking-wide">
-                      {currentTime.getFullYear()}년 {currentTime.getMonth() + 1}월 {currentTime.getDate()}일 ({['일','월','화','수','목','금','토'][currentTime.getDay()]})
+                    <div className="w-px h-4 bg-slate-200"></div>
+                    <span className="text-[17px] font-black tracking-tight text-[#00529b] font-mono drop-shadow-sm">
+                      {currentTime.toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>
-                  <div className="w-px h-4 bg-slate-200"></div>
-                  <span className="text-[17px] font-black tracking-tight text-[#00529b] font-mono drop-shadow-sm">
-                    {currentTime.toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 sm:gap-3 shrink-0 flex-1">
 

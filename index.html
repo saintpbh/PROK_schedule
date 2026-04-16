@@ -412,6 +412,44 @@
             <textarea rows={5} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ring-blue-400 resize-none"
               placeholder="행사 내용을 입력하세요..." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} />
           </div>
+
+          {(() => {
+            const urls = [];
+            const srcRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+            let match;
+            while ((match = srcRegex.exec(formData.content || '')) !== null) {
+              if (!urls.includes(match[1])) urls.push(match[1]);
+            }
+            if (urls.length === 0) return null;
+            return (
+              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <label className="block text-xs font-bold text-slate-600 mb-3"><i className="fa-regular fa-images mr-1"></i>포함된 이미지 링크 빠른 수정</label>
+                <div className="space-y-2">
+                  {urls.map((url, idx) => (
+                    <div key={idx} className="flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                      <div className="w-10 h-10 bg-slate-100 rounded shrink-0 overflow-hidden flex items-center justify-center text-slate-300 text-xs shadow-inner">
+                         <img src={url} alt="기록사진" className="w-full h-full object-cover" onError={(e) => e.target.style.opacity='0'} />
+                      </div>
+                      <input type="text" className="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-1 ring-blue-400"
+                             defaultValue={url}
+                             onBlur={(e) => {
+                               const newVal = e.target.value.trim();
+                               if (newVal !== url && newVal !== '') {
+                                  const newContent = formData.content.split(url).join(newVal);
+                                  setFormData({...formData, content: newContent});
+                               }
+                             }}
+                      />
+                      <button type="button" onClick={() => window.open(url, '_blank')} title="사본 이미지 열기" className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-500 hover:text-blue-600 hover:bg-blue-50 text-xs border border-slate-200 rounded-lg shadow-sm shrink-0 transition-colors">
+                        <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mb-0 mt-3"><i className="fa-solid fa-circle-info mr-1"></i>링크 주소를 수정한 후 마우스로 빈공간을 클릭(포커스 해제)하면 본문에 자동 적용됩니다.</p>
+              </div>
+            );
+          })()}
         </div>
       );
 

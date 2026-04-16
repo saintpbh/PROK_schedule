@@ -2,6 +2,18 @@
   "database": {
     "rules": "database.rules.json"
   },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.ps1",
+      "**/*.exe",
+      "**/*.bat",
+      "**/*.cmd"
+    ]
+  },
   "auth": {
     "providers": {
       "emailPassword": true,

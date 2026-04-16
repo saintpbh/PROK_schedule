@@ -321,21 +321,7 @@
         setShowAddForm(true);
       };
 
-      // ── Bulk fix image links (admin tool) ──────────────────────────────────
-      const bulkFixImageLinks = () => {
-        let fixCount = 0;
-        const fixed = data.map(item => {
-          if (!item.content) return item;
-          const newContent = item.content.replace(/(?:www\.)?prok\.org/g, (match) => {
-            fixCount++;
-            return 'archive.prok.org';
-          });
-          if (newContent !== item.content) return { ...item, content: newContent };
-          return item;
-        });
-        persistCustom(fixed);
-        addToast(`✅ ${fixCount}개의 이미지 링크가 archive.prok.org로 치환되었습니다.`);
-      };
+
 
       // ── Category badge color ───────────────────────────────────────────────
       const deptColor = (dept) => {
@@ -463,12 +449,6 @@
                   <span className="ml-2 bg-amber-400 text-amber-900 text-xs px-2 py-0.5 rounded-full font-bold">{archivedYearsList.length}</span>
                 )}
               </button>
-              {adminMode && (
-                <button onClick={bulkFixImageLinks}
-                  className="ml-auto px-4 py-2 rounded-xl text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-all shadow-sm">
-                  <i className="fa-solid fa-link mr-1.5"></i>이미지 링크 일괄 치환
-                </button>
-              )}
             </div>
 
             {activeTab === 'history' ? (

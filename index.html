@@ -221,6 +221,46 @@
       const [showAddForm, setShowAddForm] = useState(false);
       const [editingPost, setEditingPost] = useState(null);
       const [formData, setFormData] = useState({ title: '', date: '', dept: '총회장 동정', author: '', url: '', content: '' });
+      const [brokenImageIds, setBrokenImageIds] = useState(new Set());
+      const [isScanningImages, setIsScanningImages] = useState(false);
+      const [scanProgress, setScanProgress] = useState({ total: 0, current: 0 });
+
+      const scanBrokenImages = async () => {
+        setIsScanningImages(true);
+        const toScan = data.filter(d => d.content && d.content.includes('<img'));
+        setScanProgress({ total: toScan.length, current: 0 });
+        const brokenSet = new Set(brokenImageIds);
+
+        for (let i = 0; i < toScan.length; i++) {
+          const item = toScan[i];
+          const srcRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+          let match;
+          let isBroken = false;
+          
+          while ((match = srcRegex.exec(item.content)) !== null) {
+            let testSrc = match[1];
+            if (testSrc.includes('prok.org') && !testSrc.includes('archive.prok.org')) {
+              testSrc = testSrc.replace(/(?:www\.)?prok\.org/g, 'archive.prok.org');
+            }
+            const imgOk = await new Promise((resolve) => {
+              const tempImg = new Image();
+              tempImg.onload = () => resolve(true);
+              tempImg.onerror = () => resolve(false);
+              tempImg.src = testSrc;
+            });
+            if (!imgOk) {
+              isBroken = true;
+              break;
+            }
+          }
+          if (isBroken) brokenSet.add(item.id);
+          
+          setScanProgress({ total: toScan.length, current: i + 1 });
+          if ((i + 1) % 5 === 0) setBrokenImageIds(new Set(brokenSet));
+        }
+        setBrokenImageIds(new Set(brokenSet));
+        setIsScanningImages(false);
+      };
 
       // Load base + custom overrides
       useEffect(() => {
@@ -449,6 +489,13 @@
                   <span className="ml-2 bg-amber-400 text-amber-900 text-xs px-2 py-0.5 rounded-full font-bold">{archivedYearsList.length}</span>
                 )}
               </button>
+              {adminMode && (
+                <button onClick={scanBrokenImages} disabled={isScanningImages}
+                  className={`ml-auto px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border ${isScanningImages ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'}`}>
+                  <i className={`fa-solid ${isScanningImages ? 'fa-spinner fa-spin' : 'fa-image-slash'} mr-1.5`}></i>
+                  {isScanningImages ? `검사 중... (${scanProgress.current}/${scanProgress.total})` : '깨진 이미지 검사'}
+                </button>
+              )}
             </div>
 
             {activeTab === 'history' ? (
@@ -532,6 +579,11 @@
                           </div>
                           <div className="flex-1 text-[15px] font-medium text-[#181c1e] leading-snug group-hover:text-blue-700 transition-colors">
                             {row.title}
+                            {brokenImageIds.has(row.id) && (
+                              <div className="inline-flex items-center ml-2 px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-100 text-rose-500 text-[11px] font-bold" title="이미지를 불러올 수 없습니다">
+                                <i className="fa-solid fa-image-slash mr-1"></i>이미지 깨짐
+                              </div>
+                            )}
                           </div>
                           {adminMode && (
                             <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>

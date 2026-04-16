@@ -12,6 +12,19 @@
 
   <!-- Tailwind CSS (for editor UI) -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <style>
+    .dark body { background-color: #0f172a; }
+    .dark .bg-white { background-color: #1e293b !important; color: #f8fafc; border-color: #334155; }
+    .dark .text-slate-800 { color: #f1f5f9 !important; }
+    .dark .text-slate-700 { color: #f1f5f9 !important; }
+    .dark .text-slate-600 { color: #cbd5e1 !important; }
+    .dark .text-slate-500 { color: #94a3b8 !important; }
+    .dark .border-slate-200 { border-color: #334155 !important; }
+    .dark .bg-slate-50 { background-color: #0f172a !important; }
+    .dark input { background-color: #0f172a !important; color: #f8fafc !important; border-color: #334155 !important; }
+    .dark .glass-panel { background: rgba(30, 41, 59, 0.8) !important; border-color: #334155 !important; }
+  </style>
   
   <!-- React & Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -290,13 +303,13 @@
       };
 
       const handleEditSave = () => {
-        if (!formData.title || !formData.date) return alert('제목과 날짜는 필수입니다.');
+        if (!formData.title || !formData.date) return addToast('제목과 날짜는 필수입니다.', 'error');
         persistCustom(data.map(i => i.id === editingPost.id ? { ...i, ...formData } : i));
         setEditingPost(null);
       };
 
       const handleAddSave = () => {
-        if (!formData.title || !formData.date) return alert('제목과 날짜는 필수입니다.');
+        if (!formData.title || !formData.date) return addToast('제목과 날짜는 필수입니다.', 'error');
         const newId = `custom_${Date.now()}`;
         persistCustom([{ id: newId, board_id: 'custom', ...formData }, ...data]);
         setShowAddForm(false);
@@ -321,7 +334,7 @@
           return item;
         });
         persistCustom(fixed);
-        alert(`✅ ${fixCount}개의 이미지 링크가 archive.prok.org로 치환되었습니다.`);
+        addToast(`✅ ${fixCount}개의 이미지 링크가 archive.prok.org로 치환되었습니다.`);
       };
 
       // ── Category badge color ───────────────────────────────────────────────
@@ -706,6 +719,23 @@
     // ═══ Main App Component ══════════════════════════════════════════════
     // ═══════════════════════════════════════════════════════════════════════
     function App() {
+      // ===== 🎯 UX Upgrades =====
+      const [toasts, setToasts] = useState([]);
+      const [darkMode, setDarkMode] = useState(false);
+      const [dragOverRowInfo, setDragOverRowInfo] = useState(null);
+      const [displayMode, setDisplayMode] = useState('list');
+      
+      const addToast = (message, type = 'success') => {
+        const id = Date.now() + Math.random();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+      };
+
+      React.useEffect(() => {
+        if (darkMode) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      }, [darkMode]);
+
       const [isLoggedIn, setIsLoggedIn] = useState(false);
       const [showLoginModal, setShowLoginModal] = useState(false);
       const [loginId, setLoginId] = useState('');
@@ -776,7 +806,7 @@
 
       // ── DaouOffice functions (unchanged) ───────────────────────────────
       const fetchFromDaou = async () => {
-        if (!daouUrl || !daouId || !daouPw) return alert('설정에서 주소, 아이디, 비밀번호를 입력해주세요.');
+        if (!daouUrl || !daouId || !daouPw) return addToast('설정에서 주소, 아이디, 비밀번호를 입력해주세요.');
         setIsSyncing(true);
         try {
           const auth = btoa(`${daouId}:${daouPw}`);
@@ -791,12 +821,12 @@
             if (response.status === 401) throw new Error("401 Unauthorized - 아이디나 비밀번호를 다시 확인해주세요.");
             throw new Error(`서버 응답 오류: ${response.status}`);
           }
-          alert('연동(인증)에 성공했습니다!');
+          addToast('연동(인증)에 성공했습니다!');
         } catch (e) {
-          alert(`통신 오류가 발생했습니다.\n\n상세 에러: ${e.message}`);
+          addToast(`통신 오류가 발생했습니다.\n\n상세 에러: ${e.message}`, 'error');
         } finally { setIsSyncing(false); }
       };
-      const exportToDaou = async () => { alert('내보내기 기능 준비 중입니다.'); };
+      const exportToDaou = async () => { addToast('내보내기 기능 준비 중입니다.'); };
 
       // ═══════════════════════════════════════════════════════════════════
       // ═══ MULTI-YEAR FIREBASE LOADING ══════════════════════════════════
@@ -922,20 +952,20 @@
       // ── Create new year ────────────────────────────────────────────────
       const createNewYear = (year) => {
         if (availableYears.includes(year)) {
-          return alert(`${year}년 일정이 이미 존재합니다.`);
+          return addToast(`${year}년 일정이 이미 존재합니다.`);
         }
         const template = generateYearTemplate(year);
         schedulesBaseRef.child(String(year)).set(template);
         setSelectedYear(year);
         setShowNewYearModal(false);
-        alert(`✅ ${year}년 일정 (12개월 템플릿)이 생성되었습니다.`);
+        addToast(`✅ ${year}년 일정 (12개월 템플릿)이 생성되었습니다.`);
       };
 
       // ── CSV Import (with year selection + undo) ────────────────────────
       const triggerCsvImport = () => {
         const csvData = window.CSV_SCHEDULE_2026;
         if (!csvData || !Array.isArray(csvData)) {
-          return alert('CSV 데이터가 로드되지 않았습니다.');
+          return addToast('CSV 데이터가 로드되지 않았습니다.');
         }
         setCsvTargetYear(selectedYear);
         setShowCsvYearModal(true);
@@ -992,7 +1022,7 @@
             setUndoSnapshot(null);
           }, 30000);
 
-          alert(`✅ CSV 일정이 ${targetYear}년에 가져와졌습니다!`);
+          addToast(`✅ CSV 일정이 ${targetYear}년에 가져와졌습니다!`);
         });
       };
 
@@ -1003,7 +1033,7 @@
         setUndoSnapshot(null);
         setShowUndoToast(false);
         if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        alert('✅ 이전 상태로 되돌리기 완료!');
+        addToast('✅ 이전 상태로 되돌리기 완료!');
       };
 
       // ── Save display settings ──────────────────────────────────────────
@@ -1011,7 +1041,7 @@
         settingsRef.set(newSettings);
         setDisplaySettings(newSettings);
         setShowDisplaySettings(false);
-        alert('✅ 노출 설정이 저장되었습니다.');
+        addToast('✅ 노출 설정이 저장되었습니다.');
       };
 
       // ── Table CRUD ─────────────────────────────────────────────────────
@@ -1126,7 +1156,7 @@
             document.execCommand('copy');
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 3000);
-          } catch(err) { alert('복사에 실패했습니다.'); }
+          } catch(err) { addToast('복사에 실패했습니다.', 'error'); }
           window.getSelection().removeAllRanges();
         }
       };
@@ -1147,7 +1177,7 @@
             document.execCommand('copy');
             setCopyHtmlSuccess(true);
             setTimeout(() => setCopyHtmlSuccess(false), 3000);
-          } catch(err) { alert('복사에 실패했습니다.'); }
+          } catch(err) { addToast('복사에 실패했습니다.', 'error'); }
           document.body.removeChild(textArea);
         }
       };
@@ -1155,10 +1185,10 @@
       // ── Auth ───────────────────────────────────────────────────────────
       const handleLogin = (e) => {
         e.preventDefault();
-        if (!loginId || !loginPw) return alert('아이디(이메일)와 비밀번호를 입력해주세요.');
+        if (!loginId || !loginPw) return addToast('아이디(이메일)와 비밀번호를 입력해주세요.');
         firebase.auth().signInWithEmailAndPassword(loginId, loginPw)
           .then(() => { setShowLoginModal(false); setLoginId(''); setLoginPw(''); })
-          .catch((error) => { console.error("Login Error:", error); alert('인증 정보가 올바르지 않습니다.\n(에러: ' + error.message + ')'); });
+          .catch((error) => { console.error("Login Error:", error); addToast('인증 정보가 올바르지 않습니다.\n(에러: ' + error.message + ')'); });
       };
 
       const handleLogout = () => {
@@ -1232,7 +1262,7 @@
             }
           }
         } else {
-          alert('예정된 오늘/향후 일정을 찾을 수 없습니다.');
+          addToast('예정된 오늘/향후 일정을 찾을 수 없습니다.', 'error');
         }
       };
 
@@ -1275,10 +1305,38 @@
             </div>
           )}
 
-          {/* Top Bar */}
-          <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2 sm:pr-4">
+          {/* ── PROK Global Site Header ── */}
+          <div className="bg-white border-b border-slate-200">
+            <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 h-[75px] sm:h-[95px] flex items-center justify-between">
+              <div className="flex items-center">
+                <a href="https://prok.org/" className="block">
+                  <img src="https://prok.org/UserData/prok/Layouts/prok_Layout/Images/1_logo3.svg" alt="한국기독교장로회총회" className="h-[24px] sm:h-[34px] lg:h-[37px] object-contain transition-transform hover:scale-105" />
+                </a>
+              </div>
+              <div className="flex items-center gap-5 sm:gap-8 lg:gap-10">
+                <a href="#" onClick={(e) => e.preventDefault()} className="text-[#00529b] text-[16px] sm:text-[17px] lg:text-[18px] font-extrabold hover:text-blue-800 tracking-tight">
+                  총회주요일정
+                </a>
+                <div className="hidden md:flex items-center gap-4 lg:gap-5 text-[14px] lg:text-[16px] font-medium text-slate-600">
+                  <a href="https://prok.org/Account/Login" className="hover:text-black transition-colors">로그인</a>
+                  <span className="text-slate-300">|</span>
+                  <a href="https://prok.org/Page/Index/237730" className="hover:text-black transition-colors">회원가입</a>
+                </div>
+                <button className="text-slate-800 hover:text-[#00529b] transition-colors p-1 sm:ml-2">
+                  <svg width="26" height="20" viewBox="0 0 26 20" fill="none" className="w-[24px] lg:w-[28px]" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="26" height="2.5" fill="currentColor"/>
+                    <rect y="8.5" width="26" height="2.5" fill="currentColor"/>
+                    <rect y="17" width="26" height="2.5" fill="currentColor"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Bar (App Toolbar) */}
+          <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-20 shadow-sm transition-all relative">
+            <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 h-16 flex items-center justify-between relative">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2 sm:pr-4 flex-1">
                 <div className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-700 to-blue-500 flex items-center justify-center text-white shadow-md">
                   <i className="fa-regular fa-calendar-check text-base sm:text-lg"></i>
                 </div>
@@ -1317,15 +1375,33 @@
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <div className="hidden md:flex flex-col items-end mr-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-100 shadow-inner">
-                  <div className="text-[11px] font-bold tracking-wide text-slate-400">
-                    {currentTime.getFullYear()}년 {currentTime.getMonth() + 1}월 {currentTime.getDate()}일 ({['일','월','화','수','목','금','토'][currentTime.getDay()]})
+
+              {/* ── Center: Premium Spread-Out Clock ── */}
+              <div 
+                onClick={scrollToTodayNearest}
+                className="hidden lg:flex absolute left-1/2 -translate-x-1/2 cursor-pointer group items-center overflow-hidden rounded-2xl bg-slate-50/80 backdrop-blur-md border border-slate-200/80 shadow-sm px-6 py-1.5 transition-all duration-300 hover:bg-white hover:shadow-md hover:border-blue-300 hover:scale-[1.02] z-10"
+                title="클릭하여 오늘 일정으로 즉시 이동"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-white to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="relative flex items-center gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                    </div>
+                    <span className="text-[13.5px] font-bold text-slate-500 tracking-wide">
+                      {currentTime.getFullYear()}년 {currentTime.getMonth() + 1}월 {currentTime.getDate()}일 ({['일','월','화','수','목','금','토'][currentTime.getDay()]})
+                    </span>
                   </div>
-                  <div className="text-[15px] font-black text-slate-700 tracking-tight font-mono">
+                  <div className="w-px h-4 bg-slate-200"></div>
+                  <span className="text-[17px] font-black tracking-tight text-[#00529b] font-mono drop-shadow-sm">
                     {currentTime.toLocaleTimeString('ko-KR', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </div>
+                  </span>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 sm:gap-3 shrink-0 flex-1">
+
                 <button 
                   onClick={() => setViewMode(viewMode === 'archive' ? 'preview' : 'archive')}
                   className={`px-3 sm:px-4 py-1.5 flex rounded-xl text-xs sm:text-sm font-bold border items-center transition-all shadow-sm ${viewMode === 'archive' ? 'bg-[#001237] hover:bg-[#122752] text-white border-[#001237]' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'}`}
@@ -1537,7 +1613,7 @@
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left min-w-[700px]">
+                      <table className="w-full text-left md:min-w-[700px] block md:table">
                         <thead>
                           <tr className="bg-white border-b border-slate-200 text-slate-500 text-sm">
                             <th className="font-semibold px-4 py-3 w-[15%]">날짜 <span className="font-normal text-slate-400 text-xs ml-1">(비우면 위와 연결)</span></th>
@@ -1641,10 +1717,10 @@
                                     placeholder="오전 10:00 ~ 12:00" 
                                   />
                                 </td>
-                                <td className="p-2">
+                                <td className="block md:table-cell px-2 py-2 w-full relative"><div className="md:hidden text-xs font-bold text-slate-400 mb-1 mt-2">일정 제목</div>
                                   <input list="title-suggestions" value={row.title} onChange={e => updateRow(table.id, row.id, 'title', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all font-medium text-slate-800" placeholder="일정 제목" />
                                 </td>
-                                <td className="p-2">
+                                <td className="block md:table-cell px-2 py-2 w-full relative"><div className="md:hidden text-xs font-bold text-slate-400 mb-1 mt-2">담당 부서</div>
                                   <input list="dept-suggestions" value={row.dept} onChange={e => updateRow(table.id, row.id, 'dept', e.target.value)} 
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
@@ -1680,8 +1756,8 @@
                                     }}
                                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all text-slate-600" placeholder="담당 부서" />
                                 </td>
-                                <td className="p-2">
-                                  <div className="flex justify-center gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity">
+                                <td className="block md:table-cell px-2 py-2 w-full relative border-t md:border-t-0 mt-3 md:mt-0 pt-3 md:pt-2 border-slate-100">
+                                  <div className="flex justify-center gap-0.5 md:opacity-20 group-hover:opacity-100 transition-opacity">
                                     <button tabIndex="-1" onClick={() => addRow(table.id, i)} className="w-7 h-7 rounded text-blue-500 hover:bg-blue-100 flex items-center justify-center transition-colors"><i className="fa-solid fa-plus text-xs"></i></button>
                                     <div className="flex flex-col gap-[2px]">
                                       <button tabIndex="-1" onClick={() => moveRow(table.id, i, 'up')} disabled={i === 0} className="w-5 h-[13px] bg-slate-100 hover:bg-slate-200 rounded-t flex items-center justify-center disabled:opacity-30"><i className="fa-solid fa-caret-up text-[10px] text-slate-600"></i></button>
@@ -1726,10 +1802,22 @@
                         placeholder="부서명, 행사 제목, 날짜 키워드로 빠르게 일정을 찾아보세요..." 
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 shadow-sm rounded-2xl text-[15px] focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none font-medium text-slate-700"
+                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 shadow-sm rounded-2xl text-[15px] focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none font-medium text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                       />
                     </div>
-
+                    {/* Filter Chips 
+                    <div className="flex flex-wrap gap-2 mb-8 justify-center animate-fade-in mx-auto w-full max-w-2xl">
+                      {['전체', '총회장', '총무', '교육국', '국내선교', '해외선교', '사회봉사', '선교동역자'].map(chip => (
+                        <button 
+                          key={chip}
+                          onClick={() => setSearchQuery(chip === '전체' ? '' : chip)}
+                          className={\`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm border \${searchQuery === chip || (chip === '전체' && !searchQuery) ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'}\`}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                    */}
                     <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-10">
                       {/* Fixed Control Panel */}
                     {isLoggedIn && (
@@ -1863,6 +1951,16 @@
                 )}
               </div>
             )}
+            
+            {/* Toast Container */}
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
+              {toasts.map(toast => (
+                <div key={toast.id} className={`font-medium text-sm px-6 py-3 rounded-full flex items-center gap-3 shadow-xl transition-all animate-fade-in ${toast.type === 'error' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-white'}`}>
+                  <i className={`fa-solid ${toast.type === 'error' ? 'fa-circle-exclamation' : 'fa-check'}`}></i>
+                  {toast.message}
+                </div>
+              ))}
+            </div>
             <datalist id="title-suggestions">
               {allTitles.map((t, idx) => <option key={idx} value={t} />)}
             </datalist>

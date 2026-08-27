@@ -1645,51 +1645,92 @@
 
     connectedCallback() {
       this.loadData();
+      // 🌟 실시간 동기화: 60초마다 백그라운드에서 최신 일정 자동 갱신 (수정/추가 즉시 반영)
+      this.syncTimer = setInterval(() => {
+        this.loadData(true);
+      }, 60000);
     }
 
-    async loadData() {
+    disconnectedCallback() {
+      if (this.syncTimer) {
+        clearInterval(this.syncTimer);
+        this.syncTimer = null;
+      }
+    }
+
+    async loadData(isSilent = false) {
+      if (!isSilent && (!this.state.schedules || this.state.schedules.length === 0)) {
+        this.state.isLoading = true;
+      }
+
+      const targetYear = (this.state.activeMonth || new Date()).getFullYear();
+      const cacheBuster = '?t=' + Date.now();
+
       try {
-        // 1. Try global CSV schedule if available
-        if (window.CSV_SCHEDULE_2026 && Array.isArray(window.CSV_SCHEDULE_2026)) {
-          this.state.schedules = this.flattenSchedule(window.CSV_SCHEDULE_2026);
-          this.state.isLoading = false;
-          this.render();
-          return;
+        // 1. 실시간 Firebase RTDB 연도별 경로 조회 (/shared_schedule_editor/schedules/{year}.json)
+        const resYear = await fetch('https://prok-history-default-rtdb.asia-southeast1.firebasedatabase.app/shared_schedule_editor/schedules/' + targetYear + '.json' + cacheBuster, {
+          cache: 'no-store'
+        });
+
+        if (resYear.ok) {
+          const liveData = await resYear.json();
+          if (liveData && (Array.isArray(liveData) ? liveData.length > 0 : Object.keys(liveData).length > 0)) {
+            this.state.schedules = this.flattenSchedule(liveData, targetYear);
+            this.state.isLoading = false;
+            this.render();
+            return;
+          }
         }
 
-        // 2. Fetch Firebase RTDB directly (read-only)
-        const res = await fetch('https://prok-history-default-rtdb.asia-southeast1.firebasedatabase.app/schedules/2026.json');
-        if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            this.state.schedules = this.flattenSchedule(data);
+        // 2. 실시간 기본 경로 조회 (/shared_schedule_editor/data.json)
+        const resData = await fetch('https://prok-history-default-rtdb.asia-southeast1.firebasedatabase.app/shared_schedule_editor/data.json' + cacheBuster, {
+          cache: 'no-store'
+        });
+
+        if (resData.ok) {
+          const liveData = await resData.json();
+          if (liveData && (Array.isArray(liveData) ? liveData.length > 0 : Object.keys(liveData).length > 0)) {
+            this.state.schedules = this.flattenSchedule(liveData, targetYear);
             this.state.isLoading = false;
             this.render();
             return;
           }
         }
       } catch (e) {
-        console.warn('[PROK Widget] Using fallback local schedule data', e);
+        console.warn('[PROK Widget] Realtime live data sync error:', e);
       }
 
-      // Fallback
-      this.state.schedules = this.flattenSchedule(FALLBACK_DATA);
+      // 3. Fallback: 오프라인 / 네트워크 지연 시 내장 2026 일정 사용
+      if (!this.state.schedules || this.state.schedules.length === 0) {
+        this.state.schedules = this.flattenSchedule(FALLBACK_DATA, targetYear);
+      }
       this.state.isLoading = false;
       this.render();
     }
 
-    flattenSchedule(rawData) {
+    flattenSchedule(rawData, defaultYear = 2026) {
       const items = [];
       const tables = Array.isArray(rawData) ? rawData : Object.values(rawData || {});
       
       tables.forEach(table => {
+        let tableYear = defaultYear;
+        if (table.title) {
+          const matchY = table.title.match(/(\d{4})년/);
+          if (matchY) tableYear = parseInt(matchY[1], 10);
+        } else if (table.id) {
+          const matchY = table.id.match(/(\d{4})/);
+          if (matchY) tableYear = parseInt(matchY[1], 10);
+        }
+
         const rows = Array.isArray(table.rows) ? table.rows : Object.values(table.rows || {});
         let lastDate = '';
         rows.forEach(r => {
+          if (!r.title && !r.date && !r.time) return;
+
           let dateStr = (r.date && r.date.trim()) || lastDate;
           if (r.date && r.date.trim()) lastDate = r.date.trim();
 
-          const parsed = parseItemDate(dateStr, 2026);
+          const parsed = parseItemDate(dateStr, tableYear);
           if (parsed) {
             items.push({
               id: r.id || Math.random().toString(36).substr(2, 9),
@@ -2385,8 +2426,14 @@
       if (prevBtn) {
         prevBtn.addEventListener('click', () => {
           const current = this.state.activeMonth;
-          this.state.activeMonth = new Date(current.getFullYear(), current.getMonth() - 1, 1);
-          this.render();
+          const prevYear = current.getFullYear();
+          const nextMonth = new Date(current.getFullYear(), current.getMonth() - 1, 1);
+          this.state.activeMonth = nextMonth;
+          if (nextMonth.getFullYear() !== prevYear) {
+            this.loadData();
+          } else {
+            this.render();
+          }
         });
       }
 
@@ -2395,8 +2442,14 @@
       if (nextBtn) {
         nextBtn.addEventListener('click', () => {
           const current = this.state.activeMonth;
-          this.state.activeMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-          this.render();
+          const prevYear = current.getFullYear();
+          const nextMonth = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+          this.state.activeMonth = nextMonth;
+          if (nextMonth.getFullYear() !== prevYear) {
+            this.loadData();
+          } else {
+            this.render();
+          }
         });
       }
 

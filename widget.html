@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>한국기독교장로회 총회 일정 위젯</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="widget-root"></div>
+
+  <!-- CSV schedule fallback data if needed -->
+  <script src="csv_schedule_2026.js"></script>
+  <script src="widget.js"></script>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view') || 'monthly';
+    const theme = params.get('theme') || 'auto';
+    const dept = params.get('dept') || 'all';
+
+    const widget = document.createElement('prok-calendar-widget');
+    widget.setAttribute('data-view', view);
+    widget.setAttribute('data-theme', theme);
+    widget.setAttribute('data-dept', dept);
+
+    document.getElementById('widget-root').appendChild(widget);
+  </script>
+</body>
+</html>
